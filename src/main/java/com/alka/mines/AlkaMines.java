@@ -10,11 +10,15 @@ import com.alka.mines.gui.MenuBuilder;
 import com.alka.mines.gui.MineResetChatListener;
 import com.alka.mines.gui.MineResetMenu;
 import com.alka.mines.hologram.HologramManager;
-import com.alka.mines.hook.AlkaEconomyHook;
+import com.alka.mines.hook.AdvancedEnchantmentsHook;
 import com.alka.mines.hook.AlkaShopHook;
+import com.alka.mines.hook.BossesProHook;
+import com.alka.mines.hook.ItemsAdderHook;
+import com.alka.mines.hook.McMMOHook;
 import com.alka.mines.hook.PlaceholderHook;
 import com.alka.mines.hook.WorldEditHook;
 import com.alka.mines.listener.MineBreakListener;
+import com.alka.mines.listener.MineProtectionListener;
 import com.alka.mines.listener.PlayerMineTrackerListener;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
@@ -25,6 +29,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class AlkaMines extends JavaPlugin {
 
     private MineManager mineManager;
+    private HologramManager hologramManager;
 
     @Override
     public void onEnable() {
@@ -32,13 +37,14 @@ public final class AlkaMines extends JavaPlugin {
         mineManager.load();
 
         PlayerDataManager playerDataManager = new PlayerDataManager();
-        HologramManager hologramManager = new HologramManager(this);
+        hologramManager = new HologramManager(this);
+        hologramManager.loadAll(mineManager);
         WorldEditHook worldEditHook = new WorldEditHook();
         MineResetService resetService = new MineResetService(this);
 
         AdminMainMenu adminMainMenu = new AdminMainMenu(mineManager, hologramManager);
         BlockCompositionMenu compositionMenu = new BlockCompositionMenu(this, mineManager);
-        MineResetMenu resetMenu = new MineResetMenu(this, mineManager);
+        MineResetMenu resetMenu = new MineResetMenu(this, mineManager, hologramManager);
         adminMainMenu.setBlockCompositionMenu(compositionMenu);
         adminMainMenu.setMineResetMenu(resetMenu);
         compositionMenu.setAdminMainMenu(adminMainMenu);
@@ -49,12 +55,19 @@ public final class AlkaMines extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BlockCompositionChatListener(this, compositionMenu), this);
         getServer().getPluginManager().registerEvents(new MineResetChatListener(this, resetMenu), this);
         getServer().getPluginManager().registerEvents(new PlayerMineTrackerListener(mineManager, playerDataManager), this);
+        getServer().getPluginManager().registerEvents(new MineProtectionListener(mineManager), this);
 
-        var economyHook = AlkaEconomyHook.tryHook(this);
         var shopHook = AlkaShopHook.tryHook(this);
-        getServer().getPluginManager().registerEvents(new MineBreakListener(mineManager, playerDataManager, economyHook, shopHook), this);
+        getServer().getPluginManager().registerEvents(new MineBreakListener(mineManager, playerDataManager, shopHook), this);
 
-        AdminCommands adminCommands = new AdminCommands(mineManager, worldEditHook, adminMainMenu, resetService, playerDataManager);
+        // Deteccao de presenca apenas por enquanto - sem chamada de API ainda (ver pacote hook).
+        AdvancedEnchantmentsHook.tryHook(this);
+        McMMOHook.tryHook(this);
+        ItemsAdderHook.tryHook(this);
+        BossesProHook.tryHook(this);
+
+        AdminCommands adminCommands = new AdminCommands(mineManager, worldEditHook, adminMainMenu, resetService,
+                playerDataManager, hologramManager);
         getCommand("minaadmin").setExecutor(adminCommands);
         getCommand("minaadmin").setTabCompleter(adminCommands);
 

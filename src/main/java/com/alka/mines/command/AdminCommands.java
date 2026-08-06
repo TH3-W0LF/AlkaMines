@@ -1,6 +1,7 @@
 package com.alka.mines.command;
 
 import com.alka.mines.gui.AdminMainMenu;
+import com.alka.mines.hologram.HologramManager;
 import com.alka.mines.hook.WorldEditHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
@@ -30,27 +31,30 @@ import java.util.stream.Collectors;
 public class AdminCommands implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = List.of(
-            "criar", "deletar", "editar", "resetar", "setspawn", "setsaida", "lista", "reload");
+            "criar", "deletar", "editar", "resetar", "setspawn", "setsaida", "lista", "reload", "renomear");
 
     private final MineManager mineManager;
     private final WorldEditHook worldEditHook;
     private final AdminMainMenu adminMainMenu;
     private final MineResetService resetService;
     private final PlayerDataManager playerDataManager;
+    private final HologramManager hologramManager;
 
     public AdminCommands(MineManager mineManager, WorldEditHook worldEditHook, AdminMainMenu adminMainMenu,
-                          MineResetService resetService, PlayerDataManager playerDataManager) {
+                          MineResetService resetService, PlayerDataManager playerDataManager,
+                          HologramManager hologramManager) {
         this.mineManager = mineManager;
         this.worldEditHook = worldEditHook;
         this.adminMainMenu = adminMainMenu;
         this.resetService = resetService;
         this.playerDataManager = playerDataManager;
+        this.hologramManager = hologramManager;
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 0) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin <criar|deletar|editar|resetar|setspawn|setsaida|lista|reload>");
+            ChatUtil.send(sender, "<red>Uso: /minaadmin <criar|deletar|editar|resetar|setspawn|setsaida|lista|reload|renomear>");
             return true;
         }
 
@@ -63,6 +67,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             case "setsaida" -> handleSetSaida(sender);
             case "lista" -> handleLista(sender);
             case "reload" -> handleReload(sender);
+            case "renomear" -> handleRenomear(sender, args);
             default -> ChatUtil.send(sender, "<red>Subcomando desconhecido.");
         }
         return true;
@@ -116,6 +121,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
 
         String id = args[1].toLowerCase();
         if (mineManager.deleteMine(id)) {
+            hologramManager.delete(id);
             ChatUtil.send(sender, "<green>Mina '" + id + "' deletada.");
         } else {
             ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
@@ -216,7 +222,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
     /**
      * save() antes do load() e proposital: persiste blocksRemaining/lastReset (que so
      * vivem em memoria entre resets) antes de recarregar mines.yml do disco, entao um
-     * admin editando o arquivo a mao (composicao, recompensas, settings) tem as
+     * admin editando o arquivo a mao (composicao, settings) tem as
      * mudancas aplicadas sem perder o progresso de nenhuma mina em andamento. Nenhum
      * manager guarda referencia de Mine alem de uma chamada de metodo - todo mundo
      * busca de novo via MineManager#getMine/getMineAt, entao a troca de instancias e
@@ -231,12 +237,35 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         ChatUtil.send(sender, "<green>Configuracao do AlkaMines (mines.yml) recarregada.");
     }
 
+    private void handleRenomear(CommandSender sender, String[] args) {
+        if (!checkPermission(sender, "renomear")) {
+            return;
+        }
+        if (args.length < 3) {
+            ChatUtil.send(sender, "<red>Uso: /minaadmin renomear <id> <nome...>");
+            return;
+        }
+
+        String id = args[1].toLowerCase();
+        Mine mine = mineManager.getMine(id).orElse(null);
+        if (mine == null) {
+            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            return;
+        }
+
+        String name = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
+        mine.setDisplayName(name);
+        mineManager.save();
+        hologramManager.updateHologram(mine);
+        ChatUtil.send(sender, "<green>Mina '" + id + "' renomeada para '" + name + "'.");
+    }
+
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
             return SUBCOMMANDS.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
         }
-        if (args.length == 2 && List.of("deletar", "editar", "resetar", "setspawn").contains(args[0].toLowerCase())) {
+        if (args.length == 2 && List.of("deletar", "editar", "resetar", "setspawn", "renomear").contains(args[0].toLowerCase())) {
             return mineManager.getMines().stream().map(Mine::getId).collect(Collectors.toList());
         }
         return Collections.emptyList();

@@ -55,7 +55,10 @@ public class PlaceholderHook extends PlaceholderExpansion {
         PlayerMineData data = playerDataManager.get(player.getUniqueId());
 
         return switch (params.toLowerCase()) {
-            case "mina" -> mineManager.getMineAt(player.getLocation()).map(Mine::getDisplayName).orElse("Nenhuma");
+            case "mina" -> {
+                String currentId = data.getCurrentMineId();
+                yield currentId == null ? "Nenhuma" : mineManager.getMine(currentId).map(Mine::getDisplayName).orElse("Nenhuma");
+            }
             case "blocos" -> String.format(Locale.US, "%,d", data.getBlocksBroken());
             case "blocos_raw" -> String.valueOf(data.getBlocksBroken());
             case "nivel" -> String.valueOf(data.getPickaxeLevel());

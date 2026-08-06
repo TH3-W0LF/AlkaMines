@@ -26,11 +26,10 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Editor de composicao de uma mina: 54 slots, ultima linha (45-53) e so navegacao
  * (vidro cinza), slots 0-44 sao os blocos. Arraste um bloco do seu inventario pra um
- * slot vazio pra adicionar (entra com % / recompensa zerados, configure depois
- * clicando nele). Num bloco ja colocado (cursor vazio): clique esquerdo edita %,
- * direito edita Escarion, shift+direito remove (precisa confirmar clicando de novo
- * em ate 5s). Preco de venda NAO e configurado aqui - isso e do AlkaShop agora
- * (preco global por Material, nao por mina).
+ * slot vazio pra adicionar (entra com % zerada, configure depois clicando nele). Num
+ * bloco ja colocado (cursor vazio): clique esquerdo edita %, shift+direito remove
+ * (precisa confirmar clicando de novo em ate 5s). Preco de venda NAO e configurado
+ * aqui - isso e do AlkaShop agora (preco global por Material, nao por mina).
  * Nao usa MenuBuilder (que so cobre handlers estaticos por slot) porque aqui o slot
  * que recebe o item nao e conhecido de antemao - o clique e sempre interceptado
  * diretamente por {@link BlockCompositionMenuListener}.
@@ -114,9 +113,7 @@ public class BlockCompositionMenu {
         meta.displayName(ChatUtil.parse("<white>" + block.getMaterial().name()));
         meta.lore(List.of(
                 ChatUtil.parse("<gray>Chance: <yellow>" + trim(block.getWeight()) + "%"),
-                ChatUtil.parse("<gray>Recompensa: <yellow>" + (block.hasReward("escarion") ? trim(block.getReward("escarion")) + " Escarion" : "nenhuma")),
                 ChatUtil.parse("<gray>Clique esquerdo: <white>editar %"),
-                ChatUtil.parse("<gray>Clique direito: <white>editar Escarion"),
                 ChatUtil.parse("<gray>Shift+direito: <white>remover")
         ));
         item.setItemMeta(meta);
@@ -157,7 +154,6 @@ public class BlockCompositionMenu {
 
         switch (event.getClick()) {
             case LEFT -> promptField(player, mineId, material, Field.WEIGHT);
-            case RIGHT -> promptField(player, mineId, material, Field.REWARD);
             case SHIFT_RIGHT -> handleRemoveRequest(player, mineId, material);
             default -> {
                 // duplo-clique, tecla de numero, etc. - nao fazem sentido nesse menu, ignora.
@@ -180,10 +176,7 @@ public class BlockCompositionMenu {
         pending.put(player.getUniqueId(), new PendingBlockInput(mineId, material, field));
         player.closeInventory();
 
-        String question = switch (field) {
-            case WEIGHT -> "<green>Digite a nova porcentagem de aparicao (0-100) do bloco <white>" + material.name() + "</white><green>.";
-            case REWARD -> "<green>Digite quantos Escarion o bloco <white>" + material.name() + "</white><green> da ao ser quebrado (0 desativa).";
-        };
+        String question = "<green>Digite a nova porcentagem de aparicao (0-100) do bloco <white>" + material.name() + "</white><green>.";
         ChatUtil.send(player, question + " Digite <red>cancelar</red><green> para voltar.");
     }
 
@@ -241,7 +234,6 @@ public class BlockCompositionMenu {
 
         switch (request.field()) {
             case WEIGHT -> handleWeightInput(player, mine, block, request, input);
-            case REWARD -> handleRewardInput(player, block, request, input);
         }
     }
 
@@ -279,22 +271,6 @@ public class BlockCompositionMenu {
         reopen(player, request.mineId());
     }
 
-    private void handleRewardInput(Player player, MineBlock block, PendingBlockInput request, String input) {
-        double reward;
-        try {
-            reward = Double.parseDouble(input.replace(",", "."));
-        } catch (NumberFormatException e) {
-            ChatUtil.send(player, "<red>Valor invalido. Digite um numero (pode ser 0), ou 'cancelar'.");
-            pending.put(player.getUniqueId(), request);
-            return;
-        }
-
-        block.setReward("escarion", Math.max(0, reward));
-        mineManager.save();
-        ChatUtil.send(player, "<green>" + block.getMaterial().name() + " agora da " + trim(Math.max(0, reward)) + " Escarion ao quebrar.");
-        reopen(player, request.mineId());
-    }
-
     private void reopen(Player player, String mineId) {
         Bukkit.getScheduler().runTask(plugin, () -> open(player, mineId));
     }
@@ -311,7 +287,7 @@ public class BlockCompositionMenu {
     }
 
     private enum Field {
-        WEIGHT, REWARD
+        WEIGHT
     }
 
     public record PendingBlockInput(String mineId, Material material, Field field) {

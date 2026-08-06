@@ -95,6 +95,7 @@ public class MineManager {
 
             section.set("spawn", mine.getSpawn());
             section.set("exit", mine.getExit());
+            section.set("hologram", mine.getHologramLocation());
             section.set("category", mine.getCategory());
             section.set("icon", mine.getIcon() != null ? mine.getIcon().name() : null);
 
@@ -104,7 +105,6 @@ public class MineManager {
             settingsSection.set("reset-percentage", settings.getResetPercentage());
             settingsSection.set("invisible-players", settings.isInvisiblePlayers());
             settingsSection.set("min-pickaxe-level", settings.getMinPickaxeLevel());
-            settingsSection.set("reward-per-block", settings.getRewardPerBlock());
 
             section.set("last-reset", mine.getLastReset());
             section.set("blocks-remaining", mine.getBlocksRemaining());
@@ -114,9 +114,6 @@ public class MineManager {
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("material", block.getMaterial().name());
                 entry.put("weight", block.getWeight());
-                if (!block.getRewards().isEmpty()) {
-                    entry.put("rewards", new LinkedHashMap<>(block.getRewards()));
-                }
                 compositionList.add(entry);
             }
             section.set("composition", compositionList);
@@ -166,6 +163,7 @@ public class MineManager {
                 mine.setSpawn(spawn);
             }
             mine.setExit(section.getLocation("exit"));
+            mine.setHologramLocation(section.getLocation("hologram"));
             mine.setCategory(section.getString("category", "geral"));
 
             String iconName = section.getString("icon");
@@ -179,8 +177,7 @@ public class MineManager {
                         settingsSection.getInt("reset-interval-minutes", 0),
                         settingsSection.getDouble("reset-percentage", 40.0),
                         settingsSection.getBoolean("invisible-players", false),
-                        settingsSection.getInt("min-pickaxe-level", 0),
-                        settingsSection.getDouble("reward-per-block", 0.0));
+                        settingsSection.getInt("min-pickaxe-level", 0));
                 mine.setSettings(settings);
             }
 
@@ -194,46 +191,9 @@ public class MineManager {
                     continue;
                 }
                 double weight = entry.get("weight") instanceof Number number ? number.doubleValue() : 0.0;
-                MineBlock block = new MineBlock(material, weight);
-
-                // "sell-price" pode existir em mines.yml antigos (era do sistema de
-                // venda por mina, agora removido - o AlkaShop nao le nada daqui) -
-                // ignorado de proposito, nao existe mais MineBlock#setSellPrice.
-                Object rewardsObj = entry.get("rewards");
-                if (rewardsObj instanceof Map<?, ?> rewardsMap) {
-                    for (Map.Entry<?, ?> rewardEntry : rewardsMap.entrySet()) {
-                        if (rewardEntry.getValue() instanceof Number amount) {
-                            block.setReward(String.valueOf(rewardEntry.getKey()), amount.doubleValue());
-                        }
-                    }
-                } else if (rewardsObj instanceof ConfigurationSection rewardsSection) {
-                    // defensivo: getMapList() normalmente devolve Map puro, mas alguem editando
-                    // o mines.yml a mao pode acabar criando uma secao aninhada em vez de um mapa.
-                    for (String key : rewardsSection.getKeys(false)) {
-                        double amount = rewardsSection.getDouble(key, 0.0);
-                        if (amount > 0) {
-                            block.setReward(key, amount);
-                        }
-                    }
-                }
-
-                composition.add(block);
+                composition.add(new MineBlock(material, weight));
             }
             mine.setComposition(composition);
-
-            // migracao: minas antigas tinham so um rewardPerBlock global (MineSettings) -
-            // agora o escarion e configurado por bloco (MineBlock#rewards). Distribui o
-            // valor global pra todo bloco que ainda nao tenha reward proprio e zera o
-            // global, pra minas antigas continuarem pagando o mesmo total e nao rodar essa
-            // migracao de novo no proximo load.
-            if (mine.getSettings().getRewardPerBlock() > 0) {
-                for (MineBlock migrated : mine.getComposition()) {
-                    if (!migrated.hasReward("escarion")) {
-                        migrated.setReward("escarion", mine.getSettings().getRewardPerBlock());
-                    }
-                }
-                mine.getSettings().setRewardPerBlock(0);
-            }
 
             mines.put(id.toLowerCase(), mine);
         }

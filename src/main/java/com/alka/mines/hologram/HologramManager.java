@@ -36,6 +36,19 @@ public class HologramManager {
         return enabled;
     }
 
+    /** Recria no boot todo holograma cuja mina tenha uma hologramLocation persistida em mines.yml -
+     * sem isso, hologramas somem a cada restart ate um admin reabrir o menu e setar de novo. */
+    public void loadAll(MineManager mineManager) {
+        if (!enabled) {
+            return;
+        }
+        for (Mine mine : mineManager.getMines()) {
+            if (mine.getHologramLocation() != null) {
+                createOrUpdate(mine, mine.getHologramLocation());
+            }
+        }
+    }
+
     /** Cria (ou recria, se ja existir) o holograma 1.5 blocos acima da location informada. */
     public void createOrUpdate(Mine mine, Location location) {
         if (!enabled) {

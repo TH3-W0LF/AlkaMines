@@ -53,6 +53,7 @@ public class AdminMainMenu {
         String iconName = mine.getIcon() != null ? mine.getIcon().name() : "nenhum (usa la verde/vermelha)";
 
         Inventory inv = new MenuBuilder(27, ChatUtil.parse("<dark_gray>Mina: " + mine.getDisplayName()))
+                .fillBorder(Material.PURPLE_STAINED_GLASS_PANE)
                 .item(4, Material.OAK_SIGN, ChatUtil.parse("<gold>Definir Categoria"),
                         List.of(
                                 ChatUtil.parse("<gray>Atual: <white>" + mine.getCategory()),
@@ -61,6 +62,16 @@ public class AdminMainMenu {
                         event -> {
                             if (mineResetMenu != null) {
                                 mineResetMenu.promptCategory(admin, mine.getId());
+                            }
+                        })
+                .item(11, Material.PAPER, ChatUtil.parse("<yellow>Renomear Mina"),
+                        List.of(
+                                ChatUtil.parse("<gray>Atual: <white>" + mine.getDisplayName()),
+                                ChatUtil.parse("<yellow>Clique para definir um nome novo")
+                        ),
+                        event -> {
+                            if (mineResetMenu != null) {
+                                mineResetMenu.promptRename(admin, mine.getId());
                             }
                         })
                 .item(10, Material.GRASS_BLOCK, ChatUtil.parse("<green>Composicao de Blocos"),
@@ -110,7 +121,9 @@ public class AdminMainMenu {
                                 return;
                             }
                             Location loc = admin.getLocation();
+                            mine.setHologramLocation(loc);
                             hologramManager.createOrUpdate(mine, loc);
+                            mineManager.save();
                             ChatUtil.send(admin, "<green>Holograma setado em <white>" + loc.getBlockX() + " "
                                     + loc.getBlockY() + " " + loc.getBlockZ() + "</white><green>. Use o menu para atualizar.");
                         })

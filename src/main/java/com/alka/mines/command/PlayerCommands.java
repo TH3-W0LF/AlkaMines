@@ -103,6 +103,7 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
             exit = world.getSpawnLocation();
         }
         player.teleport(exit);
+        playerDataManager.get(player.getUniqueId()).setCurrentMineId(null);
         ChatUtil.send(player, "<green>Voce saiu da area de minas.");
     }
 
@@ -113,6 +114,10 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
             return;
         }
         player.teleport(mine.getSpawn());
+        // forca o placeholder/tracker a reconhecer a mina mesmo que o spawn configurado
+        // fique fora da regiao exata do WorldEdit (ex: uma plataforma de entrada) - senao
+        // so o proximo PlayerMoveEvent detectaria isso, com um atraso perceptivel.
+        playerDataManager.get(player.getUniqueId()).setCurrentMineId(mine.getId());
         ChatUtil.send(player, "<green>Teleportado para a mina '" + mine.getId() + "'.");
     }
 

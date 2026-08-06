@@ -103,8 +103,18 @@ public class MineListMenu {
                 }
                 player.closeInventory();
                 player.teleport(target.getSpawn());
+                playerDataManager.get(player.getUniqueId()).setCurrentMineId(target.getId());
                 ChatUtil.send(player, "<green>Teleportado para a mina '" + target.getId() + "'.");
             });
+        }
+
+        if (category != null) {
+            builder.item(SIZE - 5, Material.ARROW, ChatUtil.parse("<white>Voltar"),
+                    List.of(ChatUtil.parse("<gray>Voltar para as categorias")),
+                    event -> {
+                        player.closeInventory();
+                        open(player);
+                    });
         }
 
         player.openInventory(builder.build());

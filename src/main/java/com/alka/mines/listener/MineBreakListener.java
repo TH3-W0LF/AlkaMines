@@ -1,13 +1,10 @@
 package com.alka.mines.listener;
 
-import com.alkacode.economy.CurrencyType;
-import com.alka.mines.hook.AlkaEconomyHook;
 import com.alka.mines.hook.AlkaShopHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.manager.PlayerMineData;
 import com.alka.mines.model.Mine;
-import com.alka.mines.model.MineBlock;
 import com.alka.mines.util.ChatUtil;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -28,8 +25,7 @@ import java.util.Optional;
 /**
  * Unico ponto que faz a mina "funcionar de verdade": entrega o drop real do bloco
  * (respeitando Fortune/Silk Touch via Block#getDrops(tool), nao um ItemStack cru do
- * proprio Material), decrementa blocksRemaining, conta blocos quebrados por jogador
- * e paga ESCARION (reward especifico do bloco quebrado).
+ * proprio Material), decrementa blocksRemaining e conta blocos quebrados por jogador.
  *
  * A mina NAO vende nada e NAO sabe o que e coins - preco/moeda sao decisao exclusiva
  * do AlkaShop (preco global por Material, independente de mina). Se AlkaDrop estiver
@@ -43,8 +39,8 @@ import java.util.Optional;
  * prioridades mais baixas ja tiveram chance de cancelar - se cancelaram, nosso
  * handler nem roda (ignoreCancelled=true) e o bloco desta mina nao e tocado. Se
  * chegou ate aqui, cancelamos o evento NOS MESMOS e assumimos o controle manual
- * completo (drops, remocao do bloco, recompensas) em vez de deixar o vanilla
- * processar em cima de um bloco que ja modificamos.
+ * completo (drops e remocao do bloco) em vez de deixar o vanilla processar em cima
+ * de um bloco que ja modificamos.
  *
  * Nota: cancelar aqui faz qualquer plugin de log/anti-grief registrado em MONITOR
  * (ex: CoreProtect) ver isCancelled()=true - se algum desses plugins decidir NAO
@@ -58,14 +54,12 @@ public class MineBreakListener implements Listener {
 
     private final MineManager mineManager;
     private final PlayerDataManager playerDataManager;
-    private final Optional<AlkaEconomyHook> economyHook;
     private final Optional<AlkaShopHook> shopHook;
 
     public MineBreakListener(MineManager mineManager, PlayerDataManager playerDataManager,
-                              Optional<AlkaEconomyHook> economyHook, Optional<AlkaShopHook> shopHook) {
+                              Optional<AlkaShopHook> shopHook) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
-        this.economyHook = economyHook;
         this.shopHook = shopHook;
     }
 
@@ -108,22 +102,9 @@ public class MineBreakListener implements Listener {
         PlayerMineData data = playerDataManager.get(player.getUniqueId());
         data.incrementBlocksBroken();
 
-        MineBlock mineBlock = mine.getCompositionBlock(block.getType());
         StringBuilder actionBar = new StringBuilder();
 
         giveOrSellDrops(player, drops, actionBar);
-
-        // escarion vem EXCLUSIVAMENTE do MineBlock quebrado - rewardPerBlock da mina
-        // (MineSettings) nao e mais lido aqui, so mantido no modelo por compatibilidade
-        // com mines.yml antigos (ver MineManager#load, que migra esse valor pros blocos).
-        double reward = mineBlock != null ? mineBlock.getReward("escarion") : 0;
-        if (reward > 0) {
-            economyHook.ifPresent(hook -> hook.deposit(player.getUniqueId(), CurrencyType.ESCARION, reward));
-            if (!actionBar.isEmpty()) {
-                actionBar.append("  ");
-            }
-            actionBar.append("<gold>+").append(trim(reward)).append(" Escarion</gold>");
-        }
 
         if (!actionBar.isEmpty()) {
             player.sendActionBar(ChatUtil.parse(actionBar.toString()));

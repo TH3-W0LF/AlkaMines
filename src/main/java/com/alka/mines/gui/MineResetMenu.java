@@ -1,5 +1,6 @@
 package com.alka.mines.gui;
 
+import com.alka.mines.hologram.HologramManager;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.util.ChatUtil;
@@ -17,23 +18,22 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Sub-menu do AdminMainMenu pra configurar tempo/porcentagem de reset - GUI + prompt
  * de chat pro valor numerico, mesmo padrao do BlockCompositionMenu (nunca comando).
- * Tambem serve de infraestrutura compartilhada pro prompt de categoria, chamado
- * direto pelo AdminMainMenu (sem passar pela tela de reset) - mesmo mapa de
+ * Tambem serve de infraestrutura compartilhada pro prompt de categoria e de renomear,
+ * chamados direto pelo AdminMainMenu (sem passar pela tela de reset) - mesmo mapa de
  * pendencia, mesmo listener de chat, sem duplicar codigo.
- *
- * Nao existe mais prompt de recompensa aqui - o escarion agora e configurado por
- * bloco na composicao (BlockCompositionMenu), nunca um valor global por mina.
  */
 public class MineResetMenu {
 
     private final JavaPlugin plugin;
     private final MineManager mineManager;
+    private final HologramManager hologramManager;
     private final Map<UUID, PendingResetInput> pending = new ConcurrentHashMap<>();
     private AdminMainMenu adminMainMenu;
 
-    public MineResetMenu(JavaPlugin plugin, MineManager mineManager) {
+    public MineResetMenu(JavaPlugin plugin, MineManager mineManager, HologramManager hologramManager) {
         this.plugin = plugin;
         this.mineManager = mineManager;
+        this.hologramManager = hologramManager;
     }
 
     /** Setter em vez de construtor: MineResetMenu <-> AdminMainMenu se referenciam mutuamente. */
@@ -96,6 +96,13 @@ public class MineResetMenu {
         ChatUtil.send(admin, "<yellow>Digite o nome da categoria desta mina (ex: vip, pvp, ranking). Digite <red>cancelar</red><yellow> para voltar.");
     }
 
+    /** Chamado direto pelo AdminMainMenu - pula esta tela, vai direto pro chat. */
+    public void promptRename(Player admin, String mineId) {
+        pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.RENAME));
+        admin.closeInventory();
+        ChatUtil.send(admin, "<yellow>Digite o novo nome de exibicao desta mina. Digite <red>cancelar</red><yellow> para voltar.");
+    }
+
     /** Chamado pelo MineResetChatListener, ja na main thread, com o texto digitado no chat. */
     public void handleChatInput(Player admin, String input) {
         PendingResetInput request = pending.remove(admin.getUniqueId());
@@ -118,6 +125,7 @@ public class MineResetMenu {
             case INTERVAL -> handleIntervalInput(admin, mine, request, input);
             case PERCENTAGE -> handlePercentageInput(admin, mine, request, input);
             case CATEGORY -> handleCategoryInput(admin, mine, request, input);
+            case RENAME -> handleRenameInput(admin, mine, request, input);
         }
     }
 
@@ -172,8 +180,22 @@ public class MineResetMenu {
         reopenAfter(Field.CATEGORY, admin, request.mineId());
     }
 
-    /** INTERVAL/PERCENTAGE voltam pra esta tela (de onde vieram); CATEGORY foi
-     *  chamado direto do AdminMainMenu, entao volta pra la. */
+    private void handleRenameInput(Player admin, Mine mine, PendingResetInput request, String input) {
+        String name = input.trim();
+        if (name.isEmpty()) {
+            ChatUtil.send(admin, "<red>Nome invalido.");
+            pending.put(admin.getUniqueId(), request);
+            return;
+        }
+        mine.setDisplayName(name);
+        mineManager.save();
+        hologramManager.updateHologram(mine);
+        ChatUtil.send(admin, "<green>Mina '" + mine.getId() + "' renomeada para '" + name + "'.");
+        reopenAfter(Field.RENAME, admin, request.mineId());
+    }
+
+    /** INTERVAL/PERCENTAGE voltam pra esta tela (de onde vieram); CATEGORY/RENAME foram
+     *  chamados direto do AdminMainMenu, entao voltam pra la. */
     private void reopenAfter(Field field, Player admin, String mineId) {
         if (field == Field.INTERVAL || field == Field.PERCENTAGE) {
             Bukkit.getScheduler().runTask(plugin, () -> open(admin, mineId));
@@ -187,7 +209,7 @@ public class MineResetMenu {
     }
 
     private enum Field {
-        INTERVAL, PERCENTAGE, CATEGORY
+        INTERVAL, PERCENTAGE, CATEGORY, RENAME
     }
 
     public record PendingResetInput(String mineId, Field field) {

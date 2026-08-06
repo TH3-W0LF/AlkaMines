@@ -5,13 +5,13 @@ api-version: '1.21.8'
 author: MestreDEV
 description: Sistema de minas/prison - selecao via WorldEdit, reset em massa via FAWE, hologramas e GUIs.
 depend: [FastAsyncWorldEdit]
-softdepend: [PlaceholderAPI, DecentHolograms, AlkaEconomy, AlkaShop]
+softdepend: [PlaceholderAPI, DecentHolograms, AlkaEconomy, AlkaShop, AdvancedEnchantments, mcMMO, ItemsAdder, BossesPro]
 
 commands:
   minaadmin:
     description: Gerencia as minas do servidor.
     aliases: [minadmin, ma]
-    usage: /<command> <criar|deletar|editar|resetar|setspawn|setsaida|lista|reload>
+    usage: /<command> <criar|deletar|editar|resetar|setspawn|setsaida|lista|reload|renomear>
   mina:
     description: Abre o menu de minas, teleporta ou sai de uma mina.
     aliases: [minas]
@@ -41,6 +41,12 @@ permissions:
     default: op
   alkaminas.admin.reload:
     description: Recarrega mines.yml do disco (salva o progresso atual antes).
+    default: op
+  alkaminas.admin.renomear:
+    description: Renomeia o nome de exibicao de uma mina.
+    default: op
+  alkaminas.admin.build:
+    description: Permite colocar blocos dentro da area de uma mina.
     default: op
   alkaminas.ir:
     description: Permite usar /mina ir para teleportar ate uma mina.

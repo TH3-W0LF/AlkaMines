@@ -13,6 +13,7 @@ public class Mine {
     private MineRegion region;
     private Location spawn;
     private Location exit;
+    private Location hologramLocation;
     private List<MineBlock> composition;
     private MineSettings settings;
     private long lastReset;
@@ -26,6 +27,7 @@ public class Mine {
         this.region = region;
         this.spawn = region.getCenter();
         this.exit = null;
+        this.hologramLocation = null;
         this.composition = new ArrayList<>();
         this.settings = new MineSettings();
         this.lastReset = System.currentTimeMillis();
@@ -72,6 +74,14 @@ public class Mine {
 
     public void setExit(Location exit) {
         this.exit = exit;
+    }
+
+    public Location getHologramLocation() {
+        return hologramLocation;
+    }
+
+    public void setHologramLocation(Location hologramLocation) {
+        this.hologramLocation = hologramLocation;
     }
 
     public List<MineBlock> getComposition() {

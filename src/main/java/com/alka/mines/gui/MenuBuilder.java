@@ -49,6 +49,21 @@ public class MenuBuilder {
         return item(slot, buildItem(material, displayName, lore), onClick);
     }
 
+    /** Preenche a borda (linha superior/inferior + colunas laterais) com um item decorativo, so nos slots ainda vazios. */
+    public MenuBuilder fillBorder(Material material) {
+        int size = inventory.getSize();
+        int rows = size / 9;
+        ItemStack filler = buildItem(material, Component.empty(), List.of());
+        for (int i = 0; i < size; i++) {
+            int row = i / 9;
+            int col = i % 9;
+            if ((row == 0 || row == rows - 1 || col == 0 || col == 8) && inventory.getItem(i) == null) {
+                inventory.setItem(i, filler);
+            }
+        }
+        return this;
+    }
+
     public static ItemStack buildItem(Material material, Component displayName, List<Component> lore) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
