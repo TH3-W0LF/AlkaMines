@@ -1,0 +1,47 @@
+name: AlkaMines
+version: '${version}'
+main: com.alka.mines.AlkaMines
+api-version: '1.21.8'
+author: MestreDEV
+description: Sistema de minas/prison - selecao via WorldEdit, reset em massa via FAWE, hologramas e GUIs.
+depend: [FastAsyncWorldEdit]
+softdepend: [PlaceholderAPI, DecentHolograms, AlkaEconomy, AlkaShop]
+
+commands:
+  minaadmin:
+    description: Gerencia as minas do servidor.
+    aliases: [minadmin, ma]
+    usage: /<command> <criar|deletar|editar|resetar|setspawn|setsaida|lista|reload>
+  mina:
+    description: Abre o menu de minas, teleporta ou sai de uma mina.
+    aliases: [minas]
+    usage: /<command> [ir <id>|sair|lista]
+
+permissions:
+  alkaminas.admin.criar:
+    description: Cria uma mina a partir da selecao do WorldEdit.
+    default: op
+  alkaminas.admin.deletar:
+    description: Deleta uma mina.
+    default: op
+  alkaminas.admin.editar:
+    description: Abre o menu administrativo de uma mina.
+    default: op
+  alkaminas.admin.resetar:
+    description: Forca o reset imediato de uma mina.
+    default: op
+  alkaminas.admin.setspawn:
+    description: Define o spawn de uma mina na posicao atual.
+    default: op
+  alkaminas.admin.setsaida:
+    description: Define a saida global das minas na posicao atual.
+    default: op
+  alkaminas.admin.lista:
+    description: Lista todas as minas cadastradas.
+    default: op
+  alkaminas.admin.reload:
+    description: Recarrega mines.yml do disco (salva o progresso atual antes).
+    default: op
+  alkaminas.ir:
+    description: Permite usar /mina ir para teleportar ate uma mina.
+    default: true

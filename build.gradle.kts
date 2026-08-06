@@ -1,0 +1,90 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+plugins {
+    java
+    id("com.gradleup.shadow") version "8.3.5"
+    `maven-publish`
+}
+
+group = "com.alkacode"
+version = "1.0.15"
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://jitpack.io")
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
+}
+
+dependencies {
+    compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    compileOnly("me.clip:placeholderapi:2.11.6")
+    // integracao soft - so paga recompensa (ESCARION) se estiver instalado. AlkaCore
+    // e necessario tambem porque AlkaEconomyPlugin agora estende
+    // com.alkacode.core.plugin.AlkaPlugin (o javac precisa da hierarquia completa).
+    compileOnly("com.alkacode:AlkaCore:1.0.0")
+    compileOnly("com.alkacode:AlkaEconomy:1.0.5")
+    // integracao soft - so consulta AlkaShopAPI#isAutoSellActive/sellItem se o
+    // plugin estiver instalado (publicado via `./gradlew publishToMavenLocal` no
+    // projeto AlkaShop). A mina NAO guarda nenhum preco - so pergunta "devo vender
+    // isso pra este jogador?" e deixa o AlkaShop decidir o preco.
+    compileOnly("com.alkacode:AlkaShop:1.0.1")
+
+    // FAWE-Bukkit ja embute o WorldEdit inteiro (mesmas classes com.sk89q.worldedit.*,
+    // com fastMode/RandomPattern a mais) - cobre selecao (//wand) e reset em massa.
+    // NUNCA declarar worldedit-bukkit junto: sao as MESMAS classes, geram colisao de
+    // classpath e o javac silenciosamente resolve contra a versao errada (descoberto
+    // quando fastMode() "sumiu" do EditSessionBuilder por causa disso).
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Bukkit:2.15.3")
+    // hologramas por mina
+    // exclui os modulos NMS de snapshots futuros (26.1/26.2) - exigem JVM 25, nos so
+    // rodamos ate 1.21.8 (Java 21) e so usamos a DHAPI publica, nunca as classes NMS.
+    compileOnly("com.github.decentsoftware-eu:decentholograms:2.10.1") {
+        exclude(group = "com.github.decentsoftware-eu.decentholograms", module = "nms-v26_1")
+        exclude(group = "com.github.decentsoftware-eu.decentholograms", module = "nms-v26_2")
+    }
+    compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
+}
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+    options.release.set(21)
+}
+
+tasks.named<ShadowJar>("shadowJar") {
+    archiveClassifier.set("")
+}
+
+tasks.build {
+    dependsOn(tasks.shadowJar)
+}
+
+tasks.processResources {
+    filteringCharset = "UTF-8"
+    // sem isso, o Gradle nao percebe que so `version` mudou e reusa o plugin.yml
+    // antigo do cache (processResources fica UP-TO-DATE incorretamente).
+    inputs.property("version", project.version)
+    expand("version" to project.version)
+}
+
+// publica o jar "puro" (sem FAWE/DecentHolograms/etc relocados) no repositorio Maven
+// local, para o AlkaDrop consumir MineManager#getMineAt via compileOnly.
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = project.group.toString()
+            artifactId = "AlkaMines"
+            version = project.version.toString()
+            from(components["java"])
+        }
+    }
+}
