@@ -46,7 +46,7 @@ public class MineResetService {
     private void teleportPlayersOut(Mine mine) {
         Location destination = mine.getSpawn();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (mine.contains(player.getLocation())) {
+            if (mine.containsMining(player.getLocation())) {
                 player.teleport(destination);
             }
         }

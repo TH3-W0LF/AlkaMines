@@ -11,7 +11,7 @@ commands:
   minaadmin:
     description: Gerencia as minas do servidor.
     aliases: [minadmin, ma]
-    usage: /<command> <criar|deletar|editar|resetar|setspawn|setsaida|lista|reload|renomear>
+    usage: /<command> <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear>
   mina:
     description: Abre o menu de minas, teleporta ou sai de uma mina.
     aliases: [minas]
@@ -33,6 +33,12 @@ permissions:
   alkaminas.admin.setspawn:
     description: Define o spawn de uma mina na posicao atual.
     default: op
+  alkaminas.admin.setlobby:
+    description: Define a area da mina (lobby/dungeon) a partir da selecao do WorldEdit.
+    default: op
+  alkaminas.admin.removelobby:
+    description: Remove a area da mina (lobby/dungeon) de uma mina.
+    default: op
   alkaminas.admin.setsaida:
     description: Define a saida global das minas na posicao atual.
     default: op
@@ -47,6 +53,9 @@ permissions:
     default: op
   alkaminas.admin.build:
     description: Permite colocar blocos dentro da area de uma mina.
+    default: op
+  alkaminas.admin.bypass.commands:
+    description: Ignora o bloqueio de comandos (mine-protection.blocked-commands) dentro de uma mina.
     default: op
   alkaminas.ir:
     description: Permite usar /mina ir para teleportar ate uma mina.

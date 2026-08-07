@@ -1,0 +1,28 @@
+# Configuracao do AlkaMines.
+
+# Comandos bloqueados dentro da area de uma mina (o lobbyRegion definido via
+# /minaadmin setlobby, ou a propria regiao de mineracao se nenhum lobby foi
+# configurado) para jogadores sem a permissao alkaminas.admin.bypass.commands.
+# Cada entrada e o nome do comando SEM a barra e SEM argumentos (ex: "tp" bloqueia
+# tanto "/tp" quanto "/tp Steve", mas nao um comando de outro plugin chamado "/tpstats").
+mine-protection:
+  blocked-commands:
+    - back
+    - return
+    - tp
+    - teleport
+    - tpa
+    - tpahere
+    - tpask
+    - tpyes
+    - tpaccept
+    - home
+    - sethome
+    - warp
+    - spawn
+    - lobby
+    - hub
+    - tpo
+    - tppos
+    - etp
+    - rtp

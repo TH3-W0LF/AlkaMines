@@ -62,9 +62,21 @@ public class MineManager {
         return Optional.ofNullable(mines.get(id.toLowerCase()));
     }
 
+    /** Area de MINERACAO (blocos quebraveis) - usado por MineBreakListener/MineProtectionListener. */
     public Optional<Mine> getMineAt(Location location) {
         for (Mine mine : mines.values()) {
-            if (mine.contains(location)) {
+            if (mine.containsMining(location)) {
+                return Optional.of(mine);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Area da MINA como um todo (lobby/dungeon, cai pra regiao de mineracao se nao
+     * configurado) - usado por tracking de placeholder e protecao de comando. */
+    public Optional<Mine> getMineLobbyAt(Location location) {
+        for (Mine mine : mines.values()) {
+            if (mine.containsLobby(location)) {
                 return Optional.of(mine);
             }
         }
@@ -83,15 +95,10 @@ public class MineManager {
             ConfigurationSection section = root.createSection(mine.getId());
             section.set("display-name", mine.getDisplayName());
 
-            MineRegion region = mine.getRegion();
-            ConfigurationSection regionSection = section.createSection("region");
-            regionSection.set("world", region.getWorld());
-            regionSection.set("x1", region.getX1());
-            regionSection.set("y1", region.getY1());
-            regionSection.set("z1", region.getZ1());
-            regionSection.set("x2", region.getX2());
-            regionSection.set("y2", region.getY2());
-            regionSection.set("z2", region.getZ2());
+            saveRegion(section.createSection("region"), mine.getRegion());
+            if (mine.getLobbyRegion() != null) {
+                saveRegion(section.createSection("lobby-region"), mine.getLobbyRegion());
+            }
 
             section.set("spawn", mine.getSpawn());
             section.set("exit", mine.getExit());
@@ -126,6 +133,23 @@ public class MineManager {
         }
     }
 
+    private void saveRegion(ConfigurationSection section, MineRegion region) {
+        section.set("world", region.getWorld());
+        section.set("x1", region.getX1());
+        section.set("y1", region.getY1());
+        section.set("z1", region.getZ1());
+        section.set("x2", region.getX2());
+        section.set("y2", region.getY2());
+        section.set("z2", region.getZ2());
+    }
+
+    private MineRegion loadRegion(ConfigurationSection section) {
+        return new MineRegion(
+                section.getString("world", "world"),
+                section.getInt("x1"), section.getInt("y1"), section.getInt("z1"),
+                section.getInt("x2"), section.getInt("y2"), section.getInt("z2"));
+    }
+
     public void load() {
         mines.clear();
 
@@ -151,12 +175,13 @@ public class MineManager {
                 continue;
             }
 
-            MineRegion region = new MineRegion(
-                    regionSection.getString("world", "world"),
-                    regionSection.getInt("x1"), regionSection.getInt("y1"), regionSection.getInt("z1"),
-                    regionSection.getInt("x2"), regionSection.getInt("y2"), regionSection.getInt("z2"));
-
+            MineRegion region = loadRegion(regionSection);
             Mine mine = new Mine(id, section.getString("display-name", id), region);
+
+            ConfigurationSection lobbySection = section.getConfigurationSection("lobby-region");
+            if (lobbySection != null) {
+                mine.setLobbyRegion(loadRegion(lobbySection));
+            }
 
             Location spawn = section.getLocation("spawn");
             if (spawn != null) {

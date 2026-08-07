@@ -32,6 +32,7 @@ public class MineRegion {
         return new Location(w, x, y, z);
     }
 
+    /** Regiao exata (X, Y e Z) - usado pra mineracao, onde a altura importa de verdade. */
     public boolean contains(Location location) {
         World w = location.getWorld();
         if (w == null || !w.getName().equals(world)) {
@@ -41,6 +42,18 @@ public class MineRegion {
         int y = location.getBlockY();
         int z = location.getBlockZ();
         return x >= x1 && x <= x2 && y >= y1 && y <= y2 && z >= z1 && z <= z2;
+    }
+
+    /** So X e Z - Y e infinito. Usado pra lobby/dungeon: a plataforma de entrada de uma
+     * mina raramente fica exatamente dentro do intervalo de Y da selecao de mineracao. */
+    public boolean containsIgnoreY(Location location) {
+        World w = location.getWorld();
+        if (w == null || !w.getName().equals(world)) {
+            return false;
+        }
+        int x = location.getBlockX();
+        int z = location.getBlockZ();
+        return x >= x1 && x <= x2 && z >= z1 && z <= z2;
     }
 
     public String getWorld() {

@@ -11,6 +11,7 @@ public class Mine {
     private String id;
     private String displayName;
     private MineRegion region;
+    private MineRegion lobbyRegion;
     private Location spawn;
     private Location exit;
     private Location hologramLocation;
@@ -25,6 +26,7 @@ public class Mine {
         this.id = id;
         this.displayName = displayName;
         this.region = region;
+        this.lobbyRegion = null;
         this.spawn = region.getCenter();
         this.exit = null;
         this.hologramLocation = null;
@@ -58,6 +60,16 @@ public class Mine {
 
     public void setRegion(MineRegion region) {
         this.region = region;
+    }
+
+    /** Area maior opcional (lobby/dungeon) usada pra tracking/placeholder/protecao de
+     * comando - null = usa a propria regiao de mineracao pra tudo (ver containsLobby). */
+    public MineRegion getLobbyRegion() {
+        return lobbyRegion;
+    }
+
+    public void setLobbyRegion(MineRegion lobbyRegion) {
+        this.lobbyRegion = lobbyRegion;
     }
 
     public Location getSpawn() {
@@ -126,8 +138,19 @@ public class Mine {
         this.blocksRemaining = blocksRemaining;
     }
 
-    public boolean contains(Location location) {
+    /** Area de mineracao (blocos quebraveis) - a regiao original do WorldEdit. */
+    public boolean containsMining(Location location) {
         return region.contains(location);
+    }
+
+    /** Area da mina como um todo (lobby/dungeon) - cai pra regiao de mineracao se
+     * nenhum lobbyRegion foi configurado via /minaadmin setlobby. Ignora Y nos dois
+     * casos: a plataforma de entrada raramente fica exatamente dentro do intervalo de
+     * Y da selecao original, entao qualquer altura na coluna X/Z conta como "na mina"
+     * pra tracking/placeholder/bloqueio de comando (NUNCA pra mineracao - isso e
+     * sempre containsMining, regiao exata). */
+    public boolean containsLobby(Location location) {
+        return lobbyRegion != null ? lobbyRegion.containsIgnoreY(location) : region.containsIgnoreY(location);
     }
 
     public String getCategory() {

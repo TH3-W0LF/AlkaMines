@@ -31,7 +31,8 @@ import java.util.stream.Collectors;
 public class AdminCommands implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = List.of(
-            "criar", "deletar", "editar", "resetar", "setspawn", "setsaida", "lista", "reload", "renomear");
+            "criar", "deletar", "editar", "resetar", "setspawn", "setlobby", "removelobby",
+            "setsaida", "lista", "reload", "renomear");
 
     private final MineManager mineManager;
     private final WorldEditHook worldEditHook;
@@ -54,7 +55,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 0) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin <criar|deletar|editar|resetar|setspawn|setsaida|lista|reload|renomear>");
+            ChatUtil.send(sender, "<red>Uso: /minaadmin <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear>");
             return true;
         }
 
@@ -64,6 +65,8 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             case "editar" -> handleEditar(sender, args);
             case "resetar" -> handleResetar(sender, args);
             case "setspawn" -> handleSetSpawn(sender, args);
+            case "setlobby" -> handleSetLobby(sender, args);
+            case "removelobby" -> handleRemoveLobby(sender, args);
             case "setsaida" -> handleSetSaida(sender);
             case "lista" -> handleLista(sender);
             case "reload" -> handleReload(sender);
@@ -83,9 +86,18 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
 
     /** ID de mina vira chave de secao no mines.yml e parte do id do holograma (DHAPI) -
      * restringe a [a-z0-9_-] pra nunca gerar YAML/holograma invalido a partir de texto
-     * colado com espacos, acentos ou codigos de cor. */
+     * colado com espacos, acentos ou codigos de cor.
+     *
+     * Remove o codigo de cor INTEIRO (simbolo + caractere, ex: "&5", "&l", "§a")
+     * antes do filtro alfanumerico - se so o simbolo fosse removido, o caractere do
+     * codigo (que costuma ser uma letra ou digito valido) vazaria pro ID: "&5&5&lmina"
+     * viraria "55lmina" em vez de "mina". */
     private String sanitizeId(String raw) {
-        return raw.toLowerCase().replaceAll("[^a-z0-9_-]", "");
+        if (raw == null) {
+            return "";
+        }
+        String noColorCodes = raw.replaceAll("[&§][0-9a-fk-or]", "");
+        return noColorCodes.toLowerCase().replaceAll("[^a-z0-9_-]", "");
     }
 
     private void handleCriar(CommandSender sender, String[] args) {
@@ -200,6 +212,59 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         ChatUtil.send(sender, "<green>Spawn da mina '" + id + "' atualizado para sua posicao atual.");
     }
 
+    private void handleSetLobby(CommandSender sender, String[] args) {
+        if (!checkPermission(sender, "setlobby")) {
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            ChatUtil.send(sender, "<red>Apenas jogadores podem usar esse comando.");
+            return;
+        }
+        if (args.length < 2) {
+            ChatUtil.send(sender, "<red>Uso: /minaadmin setlobby <id>");
+            return;
+        }
+
+        String id = sanitizeId(args[1]);
+        Mine mine = mineManager.getMine(id).orElse(null);
+        if (mine == null) {
+            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            return;
+        }
+
+        Optional<MineRegion> selection = worldEditHook.getSelection(player);
+        if (selection.isEmpty()) {
+            ChatUtil.send(sender, "<red>Voce precisa de uma selecao valida do WorldEdit (//pos1, //pos2 ou //wand).");
+            return;
+        }
+
+        mine.setLobbyRegion(selection.get());
+        mineManager.save();
+        ChatUtil.send(sender, "<green>Area da mina '" + id + "' (lobby/dungeon) definida.");
+        ChatUtil.send(sender, "<gray>A regiao de mineracao continua sendo a original - o lobby so vale pra tracking/placeholder e protecao de comando.");
+    }
+
+    private void handleRemoveLobby(CommandSender sender, String[] args) {
+        if (!checkPermission(sender, "removelobby")) {
+            return;
+        }
+        if (args.length < 2) {
+            ChatUtil.send(sender, "<red>Uso: /minaadmin removelobby <id>");
+            return;
+        }
+
+        String id = sanitizeId(args[1]);
+        Mine mine = mineManager.getMine(id).orElse(null);
+        if (mine == null) {
+            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            return;
+        }
+
+        mine.setLobbyRegion(null);
+        mineManager.save();
+        ChatUtil.send(sender, "<green>Area da mina '" + id + "' removida - agora so a regiao de mineracao conta.");
+    }
+
     private void handleSetSaida(CommandSender sender) {
         if (!checkPermission(sender, "setsaida")) {
             return;
@@ -226,7 +291,8 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
 
         ChatUtil.send(sender, "<gold>Minas (" + mines.size() + "):");
         for (Mine mine : mines) {
-            ChatUtil.send(sender, "<gray>- <white>" + mine.getId() + " <gray>(" + mine.getBlocksRemaining() + " blocos restantes)");
+            String lobbyTag = mine.getLobbyRegion() != null ? " <light_purple>[lobby]" : "";
+            ChatUtil.send(sender, "<gray>- <white>" + mine.getId() + " <gray>(" + mine.getBlocksRemaining() + " blocos restantes)" + lobbyTag);
         }
     }
 
@@ -276,7 +342,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             return SUBCOMMANDS.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
         }
-        if (args.length == 2 && List.of("deletar", "editar", "resetar", "setspawn", "renomear").contains(args[0].toLowerCase())) {
+        if (args.length == 2 && List.of("deletar", "editar", "resetar", "setspawn", "setlobby", "removelobby", "renomear").contains(args[0].toLowerCase())) {
             return mineManager.getMines().stream().map(Mine::getId).collect(Collectors.toList());
         }
         return Collections.emptyList();

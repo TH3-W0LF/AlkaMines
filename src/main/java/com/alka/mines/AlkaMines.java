@@ -18,6 +18,7 @@ import com.alka.mines.hook.McMMOHook;
 import com.alka.mines.hook.PlaceholderHook;
 import com.alka.mines.hook.WorldEditHook;
 import com.alka.mines.listener.MineBreakListener;
+import com.alka.mines.listener.MineCommandBlockerListener;
 import com.alka.mines.listener.MineProtectionListener;
 import com.alka.mines.listener.PlayerMineTrackerListener;
 import com.alka.mines.manager.MineManager;
@@ -33,6 +34,8 @@ public final class AlkaMines extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        saveDefaultConfig();
+
         mineManager = new MineManager(this);
         mineManager.load();
 
@@ -56,6 +59,9 @@ public final class AlkaMines extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new MineResetChatListener(this, resetMenu), this);
         getServer().getPluginManager().registerEvents(new PlayerMineTrackerListener(mineManager, playerDataManager), this);
         getServer().getPluginManager().registerEvents(new MineProtectionListener(mineManager), this);
+        getServer().getPluginManager().registerEvents(
+                new MineCommandBlockerListener(mineManager, getConfig().getStringList("mine-protection.blocked-commands")),
+                this);
 
         var shopHook = AlkaShopHook.tryHook(this);
         getServer().getPluginManager().registerEvents(new MineBreakListener(mineManager, playerDataManager, shopHook), this);
