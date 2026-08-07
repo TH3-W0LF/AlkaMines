@@ -4,7 +4,7 @@ main: com.alka.mines.AlkaMines
 api-version: '1.21.8'
 author: MestreDEV
 description: Sistema de minas/prison - selecao via WorldEdit, reset em massa via FAWE, hologramas e GUIs.
-depend: [FastAsyncWorldEdit]
+depend: [AlkaCore, FastAsyncWorldEdit]
 softdepend: [PlaceholderAPI, DecentHolograms, AlkaEconomy, AlkaShop, AdvancedEnchantments, mcMMO, ItemsAdder, BossesPro]
 
 commands:
@@ -61,10 +61,6 @@ permissions:
     description: Permite usar /mina ir para teleportar ate uma mina.
     default: true
 
-  # Exemplos de permissao de entrada por mina (Mine#getSettings#getPermission,
-  # configurada via /minaadmin -> Configurar Reset -> Permissao de Entrada). Nao sao
-  # lidas por nome fixo em lugar nenhum do codigo - qualquer node serve, estas aqui
-  # sao so pra aparecerem documentadas/com tab-complete em plugins de permissao.
   alkaminas.mina.vip:
     description: Acesso a uma mina marcada como exigindo esta permissao (exemplo).
     default: false
