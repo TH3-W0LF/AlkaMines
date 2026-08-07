@@ -10,17 +10,18 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 
 /**
- * Impede jogadores sem alkaminas.admin.build de colocar blocos dentro da area de uma
- * mina (evita poluir a composicao configurada), e de quebrar blocos que NAO fazem
- * parte da composicao configurada (bedrock, estrutura, grama que por acaso esteja
- * dentro da selecao do WorldEdit) - o MineBreakListener sozinho nao distingue isso,
- * ele processa qualquer bloco dentro da regiao.
+ * Impede jogadores sem alkaminas.admin.build de colocar OU quebrar bloco em qualquer
+ * lugar da mina - lobby (Mine#containsLobby, ignora Y) incluido, nao so a regiao de
+ * mineracao exata. Break so libera quando o bloco esta na regiao de mineracao exata
+ * (Mine#containsMining) E faz parte da composicao configurada - o MineBreakListener
+ * sozinho nao distingue nada disso, ele processa qualquer bloco dentro da regiao.
  *
  * onBlockBreak roda em LOW, ANTES do MineBreakListener (HIGHEST + ignoreCancelled):
- * cancela so o que NAO e da composicao; blocos da composicao passam direto (evento
- * continua nao-cancelado) pro MineBreakListener processar a quebra oficial normalmente.
- * Isso e proposital - um segundo listener cancelando TODO BlockBreakEvent pra quem nao
- * tem essa permissao impediria jogadores comuns de minerar de verdade.
+ * cancela tudo que nao e um bloco de composicao dentro da regiao de mineracao; o resto
+ * (composicao de verdade) passa direto (evento continua nao-cancelado) pro
+ * MineBreakListener processar a quebra oficial normalmente. Isso e proposital - um
+ * segundo listener cancelando TODO BlockBreakEvent pra quem nao tem essa permissao
+ * impediria jogadores comuns de minerar de verdade.
  */
 public class MineProtectionListener implements Listener {
 
@@ -30,29 +31,38 @@ public class MineProtectionListener implements Listener {
         this.mineManager = mineManager;
     }
 
+    /** Protege PLACE em toda a area da mina (lobby + mineracao). */
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        if (mineManager.getMineAt(event.getBlock().getLocation()).isPresent()
-                && !event.getPlayer().hasPermission("alkaminas.admin.build")) {
+        if (event.getPlayer().hasPermission("alkaminas.admin.build")) {
+            return;
+        }
+        if (mineManager.getMineLobbyAt(event.getBlock().getLocation()).isPresent()) {
             event.setCancelled(true);
         }
     }
 
+    /** Protege BREAK em toda a area da mina (lobby + mineracao) - so libera bloco de
+     * composicao dentro da regiao de mineracao exata. */
     @EventHandler(priority = EventPriority.LOW)
     public void onBlockBreak(BlockBreakEvent event) {
         if (event.getPlayer().hasPermission("alkaminas.admin.build")) {
             return;
         }
 
-        Mine mine = mineManager.getMineAt(event.getBlock().getLocation()).orElse(null);
+        Mine mine = mineManager.getMineLobbyAt(event.getBlock().getLocation()).orElse(null);
         if (mine == null) {
             return;
         }
 
-        Material blockType = event.getBlock().getType();
-        boolean isMineable = mine.getComposition().stream().anyMatch(b -> b.getMaterial() == blockType);
-        if (!isMineable) {
-            event.setCancelled(true);
+        if (mine.containsMining(event.getBlock().getLocation())) {
+            Material blockType = event.getBlock().getType();
+            boolean isMineable = mine.getComposition().stream().anyMatch(b -> b.getMaterial() == blockType);
+            if (isMineable) {
+                return;
+            }
         }
+
+        event.setCancelled(true);
     }
 }
