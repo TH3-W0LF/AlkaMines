@@ -48,6 +48,16 @@ import java.util.Optional;
  * completo (drops e remocao do bloco) em vez de deixar o vanilla processar em cima
  * de um bloco que ja modificamos.
  *
+ * EXCECAO: bloco custom do ItemsAdder. NAO cancelamos o evento pra esses - o
+ * ItemsAdder mantem estado interno por bloco (luz, hologram, etc) e so o dropa
+ * corretamente se o proprio evento seguir seu curso normal. Cancelar e remover via
+ * setType(AIR) como fazemos pros blocos normais deixa o ItemsAdder com um bloco
+ * "fantasma" pro cliente (nunca avisado da remocao) e o drop correto nunca acontece
+ * (o vanilla dropa o Material base, nao o item custom). Pra bloco custom so fazemos
+ * o que e nosso mesmo (XP, contagem de progresso) e deixamos o resto pro
+ * ItemsAdder/vanilla - com a limitacao de que a auto-venda do AlkaShop nao rola
+ * pra esse drop, ja que ele nunca passa pelo nosso pipeline de inventario.
+ *
  * Nota: cancelar aqui faz qualquer plugin de log/anti-grief registrado em MONITOR
  * (ex: CoreProtect) ver isCancelled()=true - se algum desses plugins decidir NAO
  * logar a quebra por causa disso, isso e um efeito colateral a se observar.
@@ -95,8 +105,16 @@ public class MineBreakListener implements Listener {
 
         // entrada da composicao que corresponde a este bloco (null se nao configurado) -
         // traz os overrides de %/XP definidos direto no BlockCompositionMenu. Precisa
-        // ser resolvido ANTES do setType(AIR) logo abaixo (usa o Material/namespace original).
+        // ser resolvido AGORA, antes de qualquer remocao (usa o Material/namespace original).
         MineBlock compositionBlock = resolveCompositionBlock(mine, block);
+
+        if (ItemsAdderHook.isCustomBlock(block)) {
+            // ver javadoc da classe - nao cancelamos, deixamos o ItemsAdder/vanilla
+            // processarem a quebra e o drop custom sozinhos.
+            trackProgress(player, mine);
+            applyXp(player, block, compositionBlock);
+            return;
+        }
 
         // drops calculados com o bloco ainda no tipo original, ANTES de cancelar/remover.
         Collection<ItemStack> drops = block.getDrops(player.getInventory().getItemInMainHand());
@@ -105,10 +123,7 @@ public class MineBreakListener implements Listener {
         event.setDropItems(false);
         event.setExpToDrop(0);
 
-        mcmmoHook.ifPresent(hook -> hook.addMiningXp(player, block, compositionBlock));
-        if (compositionBlock != null && compositionBlock.getNormalXp() > 0) {
-            player.giveExp((int) Math.round(compositionBlock.getNormalXp()));
-        }
+        applyXp(player, block, compositionBlock);
 
         // applyPhysics=true aqui gera ghost block: o servidor processa fisica
         // (redstone/luz/blocos adjacentes) em cima de um BlockBreakEvent que ele acha
@@ -124,6 +139,18 @@ public class MineBreakListener implements Listener {
             }
         }
 
+        trackProgress(player, mine);
+
+        StringBuilder actionBar = new StringBuilder();
+
+        giveOrSellDrops(player, drops, actionBar);
+
+        if (!actionBar.isEmpty()) {
+            player.sendActionBar(ChatUtil.parse(actionBar.toString()));
+        }
+    }
+
+    private void trackProgress(Player player, Mine mine) {
         mine.setBlocksRemaining(Math.max(0, mine.getBlocksRemaining() - 1));
 
         PlayerMineData data = playerDataManager.get(player.getUniqueId());
@@ -132,13 +159,12 @@ public class MineBreakListener implements Listener {
         if (data.recalculateLevel(levelManager.getThresholds())) {
             announceLevelUp(player, data);
         }
+    }
 
-        StringBuilder actionBar = new StringBuilder();
-
-        giveOrSellDrops(player, drops, actionBar);
-
-        if (!actionBar.isEmpty()) {
-            player.sendActionBar(ChatUtil.parse(actionBar.toString()));
+    private void applyXp(Player player, Block block, MineBlock compositionBlock) {
+        mcmmoHook.ifPresent(hook -> hook.addMiningXp(player, block, compositionBlock));
+        if (compositionBlock != null && compositionBlock.getNormalXp() > 0) {
+            player.giveExp((int) Math.round(compositionBlock.getNormalXp()));
         }
     }
 

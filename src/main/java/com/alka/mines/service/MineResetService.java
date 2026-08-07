@@ -14,12 +14,13 @@ import org.bukkit.plugin.java.JavaPlugin;
  * Orquestra o reset de uma mina: teleporta jogadores (sync, API do Bukkit), roda o
  * FAWEHook e so entao atualiza o estado + dispara o evento, de volta na main thread.
  *
- * O reset puro por FAWE (EditSession/RandomPattern) e seguro fora da main thread.
- * Mas se a composicao tiver bloco custom do ItemsAdder, FAWEHook cai pro reset
- * hibrido bloco-a-bloco (ver FAWEHook#resetWithCustomBlocks), que chama
- * Block#setType e CustomBlock.place diretamente - APIs do Bukkit/ItemsAdder que
- * NAO sao seguras fora da main thread. Por isso o reset roda inteiro sincrono
- * quando ha bloco custom, e so cai pra async quando e FAWE puro.
+ * reset() so e chamado de contextos ja na main thread (comando /minaadmin e
+ * MineResetTask via runTaskTimer) - por isso pode invocar FAWEHook.resetRegion()
+ * direto. O reset puro por FAWE (EditSession/RandomPattern) e rapido o bastante pra
+ * despachar pra fora da main thread sem lag perceptivel. Ja o reset com bloco custom
+ * do ItemsAdder (FAWEHook#resetWithCustomBlocks) EXIGE main thread (CustomBlock.place)
+ * e e pesado demais pra rodar tudo num tick so - por isso FAWEHook mesmo se encarrega
+ * de espalhar em lotes por tick, e so chama onComplete (finishReset) no ultimo lote.
  */
 public class MineResetService {
 
@@ -35,13 +36,10 @@ public class MineResetService {
         boolean hasCustomBlocks = mine.getComposition().stream().anyMatch(MineBlock::isCustomBlock);
 
         if (hasCustomBlocks) {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                FAWEHook.resetRegion(mine.getRegion(), mine.getComposition());
-                finishReset(mine);
-            });
+            FAWEHook.resetRegion(plugin, mine.getRegion(), mine.getComposition(), () -> finishReset(mine));
         } else {
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                FAWEHook.resetRegion(mine.getRegion(), mine.getComposition());
+                FAWEHook.resetRegion(plugin, mine.getRegion(), mine.getComposition(), null);
                 Bukkit.getScheduler().runTask(plugin, () -> finishReset(mine));
             });
         }
