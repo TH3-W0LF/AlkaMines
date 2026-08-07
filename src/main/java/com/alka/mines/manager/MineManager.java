@@ -112,6 +112,7 @@ public class MineManager {
             settingsSection.set("reset-percentage", settings.getResetPercentage());
             settingsSection.set("invisible-players", settings.isInvisiblePlayers());
             settingsSection.set("min-pickaxe-level", settings.getMinPickaxeLevel());
+            settingsSection.set("permission", settings.getPermission());
 
             section.set("last-reset", mine.getLastReset());
             section.set("blocks-remaining", mine.getBlocksRemaining());
@@ -202,7 +203,8 @@ public class MineManager {
                         settingsSection.getInt("reset-interval-minutes", 0),
                         settingsSection.getDouble("reset-percentage", 40.0),
                         settingsSection.getBoolean("invisible-players", false),
-                        settingsSection.getInt("min-pickaxe-level", 0));
+                        settingsSection.getInt("min-pickaxe-level", 0),
+                        settingsSection.getString("permission", ""));
                 mine.setSettings(settings);
             }
 

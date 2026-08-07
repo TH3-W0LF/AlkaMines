@@ -26,3 +26,19 @@ mine-protection:
     - tppos
     - etp
     - rtp
+
+# Niveis de picareta baseados em blocos minerados (lifetime, players.yml). Formato:
+# nivel: blocos_necessarios. O jogador sobe de nivel automaticamente ao minerar o
+# suficiente (ver MineBreakListener). Use min-pickaxe-level (por mina, no menu
+# /minaadmin -> Configurar Reset) pra criar minas exclusivas por nivel.
+pickaxe-levels:
+  0: 0          # nivel inicial - todo jogador comeca aqui
+  1: 1000
+  2: 5000
+  3: 25000
+  4: 100000
+  5: 500000
+  6: 2000000
+  7: 5000000
+  8: 10000000
+  9: 20000000

@@ -22,6 +22,7 @@ import com.alka.mines.listener.MineCommandBlockerListener;
 import com.alka.mines.listener.MineProtectionListener;
 import com.alka.mines.listener.PlayerMineTrackerListener;
 import com.alka.mines.manager.MineManager;
+import com.alka.mines.manager.PickaxeLevelManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.service.MineResetService;
 import com.alka.mines.task.MineResetTask;
@@ -30,7 +31,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class AlkaMines extends JavaPlugin {
 
     private MineManager mineManager;
+    private PlayerDataManager playerDataManager;
     private HologramManager hologramManager;
+    private PickaxeLevelManager levelManager;
 
     @Override
     public void onEnable() {
@@ -39,7 +42,8 @@ public final class AlkaMines extends JavaPlugin {
         mineManager = new MineManager(this);
         mineManager.load();
 
-        PlayerDataManager playerDataManager = new PlayerDataManager();
+        playerDataManager = new PlayerDataManager(this);
+        levelManager = new PickaxeLevelManager(this);
         hologramManager = new HologramManager(this);
         hologramManager.loadAll(mineManager);
         WorldEditHook worldEditHook = new WorldEditHook();
@@ -64,7 +68,8 @@ public final class AlkaMines extends JavaPlugin {
                 this);
 
         var shopHook = AlkaShopHook.tryHook(this);
-        getServer().getPluginManager().registerEvents(new MineBreakListener(mineManager, playerDataManager, shopHook), this);
+        getServer().getPluginManager().registerEvents(
+                new MineBreakListener(mineManager, playerDataManager, levelManager, shopHook), this);
 
         // Deteccao de presenca apenas por enquanto - sem chamada de API ainda (ver pacote hook).
         AdvancedEnchantmentsHook.tryHook(this);
@@ -82,13 +87,17 @@ public final class AlkaMines extends JavaPlugin {
         getCommand("mina").setTabCompleter(playerCommands);
 
         if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-            new PlaceholderHook(this, mineManager, playerDataManager).register();
+            new PlaceholderHook(this, mineManager, playerDataManager, levelManager).register();
             getLogger().info("Hook do PlaceholderAPI registrado.");
         }
 
         MineResetTask resetTask = new MineResetTask(mineManager, resetService);
         getServer().getScheduler().runTaskTimer(this, resetTask, 20L, 20L);
         getServer().getScheduler().runTaskTimer(this, () -> hologramManager.updateAll(mineManager), 20L, 20L);
+        // Auto-save periodico do progresso do jogador (blocksBroken/pickaxeLevel) - o
+        // onDisable ja salva, mas isso nao ajuda num crash/kill -9. blocksRemaining de
+        // mina tolera perda (recalcula no proximo reset); progresso de jogador nao.
+        getServer().getScheduler().runTaskTimerAsynchronously(this, playerDataManager::save, 6000L, 6000L);
 
         getLogger().info("AlkaMines habilitado com " + mineManager.getMines().size() + " mina(s).");
     }
@@ -97,6 +106,9 @@ public final class AlkaMines extends JavaPlugin {
     public void onDisable() {
         if (mineManager != null) {
             mineManager.save();
+        }
+        if (playerDataManager != null) {
+            playerDataManager.save();
         }
     }
 

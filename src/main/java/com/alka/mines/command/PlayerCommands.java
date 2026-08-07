@@ -109,6 +109,11 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
 
     private void teleportTo(Player player, Mine mine) {
         if (!canAccess(player, mine)) {
+            if (mine.getSettings().hasPermission() && !player.hasPermission(mine.getSettings().getPermission())) {
+                ChatUtil.send(player, "<red>Voce precisa da permissao <white>" + mine.getSettings().getPermission()
+                        + "</white><red> para entrar em '" + mine.getId() + "'.");
+                return;
+            }
             ChatUtil.send(player, "<red>Voce precisa de nivel de picareta " + mine.getSettings().getMinPickaxeLevel()
                     + " para entrar em '" + mine.getId() + "'.");
             return;
@@ -128,6 +133,9 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
     }
 
     private boolean canAccess(Player player, Mine mine) {
+        if (mine.getSettings().hasPermission() && !player.hasPermission(mine.getSettings().getPermission())) {
+            return false;
+        }
         int required = mine.getSettings().getMinPickaxeLevel();
         if (required <= 0) {
             return true;

@@ -2,6 +2,7 @@ package com.alka.mines.listener;
 
 import com.alka.mines.hook.AlkaShopHook;
 import com.alka.mines.manager.MineManager;
+import com.alka.mines.manager.PickaxeLevelManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.manager.PlayerMineData;
 import com.alka.mines.model.Mine;
@@ -19,6 +20,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -54,12 +56,14 @@ public class MineBreakListener implements Listener {
 
     private final MineManager mineManager;
     private final PlayerDataManager playerDataManager;
+    private final PickaxeLevelManager levelManager;
     private final Optional<AlkaShopHook> shopHook;
 
     public MineBreakListener(MineManager mineManager, PlayerDataManager playerDataManager,
-                              Optional<AlkaShopHook> shopHook) {
+                              PickaxeLevelManager levelManager, Optional<AlkaShopHook> shopHook) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
+        this.levelManager = levelManager;
         this.shopHook = shopHook;
     }
 
@@ -102,6 +106,10 @@ public class MineBreakListener implements Listener {
         PlayerMineData data = playerDataManager.get(player.getUniqueId());
         data.incrementBlocksBroken();
 
+        if (data.recalculateLevel(levelManager.getThresholds())) {
+            announceLevelUp(player, data);
+        }
+
         StringBuilder actionBar = new StringBuilder();
 
         giveOrSellDrops(player, drops, actionBar);
@@ -109,6 +117,21 @@ public class MineBreakListener implements Listener {
         if (!actionBar.isEmpty()) {
             player.sendActionBar(ChatUtil.parse(actionBar.toString()));
         }
+    }
+
+    private void announceLevelUp(Player player, PlayerMineData data) {
+        int newLevel = data.getPickaxeLevel();
+        long next = levelManager.getBlocksForNextLevel(newLevel);
+
+        ChatUtil.send(player, "");
+        ChatUtil.send(player, "<gold><bold>⛏ NIVEL DE PICARETA UP! <yellow>Voce alcancou o nivel <white>" + newLevel + "<yellow>!");
+        ChatUtil.send(player, "<gray>Blocos minerados: <white>" + String.format(Locale.US, "%,d", data.getBlocksBroken()));
+        if (next > 0) {
+            ChatUtil.send(player, "<gray>Proximo nivel em: <white>" + String.format(Locale.US, "%,d", next) + " <gray>blocos");
+        } else {
+            ChatUtil.send(player, "<gold><bold>NIVEL MAXIMO!</bold> <gray>Voce e uma lenda.");
+        }
+        ChatUtil.send(player, "");
     }
 
     private void giveOrSellDrops(Player player, Collection<ItemStack> drops, StringBuilder actionBar) {

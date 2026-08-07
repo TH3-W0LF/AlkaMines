@@ -60,3 +60,14 @@ permissions:
   alkaminas.ir:
     description: Permite usar /mina ir para teleportar ate uma mina.
     default: true
+
+  # Exemplos de permissao de entrada por mina (Mine#getSettings#getPermission,
+  # configurada via /minaadmin -> Configurar Reset -> Permissao de Entrada). Nao sao
+  # lidas por nome fixo em lugar nenhum do codigo - qualquer node serve, estas aqui
+  # sao so pra aparecerem documentadas/com tab-complete em plugins de permissao.
+  alkaminas.mina.vip:
+    description: Acesso a uma mina marcada como exigindo esta permissao (exemplo).
+    default: false
+  alkaminas.mina.supervip:
+    description: Acesso a uma mina marcada como exigindo esta permissao (exemplo).
+    default: false

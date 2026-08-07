@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -94,16 +95,15 @@ public class MineListMenu {
             List<Component> lore = List.of(
                     ChatUtil.parse("<gray>Nivel necessario: <white>" + mine.getSettings().getMinPickaxeLevel()),
                     ChatUtil.parse("<gray>Blocos compostos: <white>" + mine.getComposition().size() + " tipo(s)"),
-                    ChatUtil.parse("<gray>Restantes: <white>" + mine.getBlocksRemaining()),
+                    ChatUtil.parse("<gray>Restantes: <white>" + String.format(Locale.US, "%,d", mine.getBlocksRemaining())),
                     ChatUtil.parse(""),
-                    access ? ChatUtil.parse("<green>Clique para entrar") : ChatUtil.parse("<red>Nivel insuficiente")
+                    access ? ChatUtil.parse("<green>Clique para entrar") : ChatUtil.parse(denyReason(player, mine))
             );
 
             Mine target = mine;
             builder.item(slot++, icon, name, lore, event -> {
                 if (!access) {
-                    ChatUtil.send(player, "<red>Voce precisa de nivel de picareta " + target.getSettings().getMinPickaxeLevel()
-                            + " para entrar em '" + target.getId() + "'.");
+                    ChatUtil.send(player, denyMessage(player, target));
                     return;
                 }
                 player.closeInventory();
@@ -124,11 +124,30 @@ public class MineListMenu {
     }
 
     private boolean canAccess(Player player, Mine mine) {
+        if (mine.getSettings().hasPermission() && !player.hasPermission(mine.getSettings().getPermission())) {
+            return false;
+        }
         int required = mine.getSettings().getMinPickaxeLevel();
         if (required <= 0) {
             return true;
         }
         return playerDataManager.get(player.getUniqueId()).getPickaxeLevel() >= required;
+    }
+
+    private String denyReason(Player player, Mine mine) {
+        if (mine.getSettings().hasPermission() && !player.hasPermission(mine.getSettings().getPermission())) {
+            return "<red>Requer: <white>" + mine.getSettings().getPermission();
+        }
+        return "<red>Nivel insuficiente";
+    }
+
+    private String denyMessage(Player player, Mine mine) {
+        if (mine.getSettings().hasPermission() && !player.hasPermission(mine.getSettings().getPermission())) {
+            return "<red>Voce precisa da permissao <white>" + mine.getSettings().getPermission()
+                    + "</white><red> para entrar em '" + mine.getId() + "'.";
+        }
+        return "<red>Voce precisa de nivel de picareta " + mine.getSettings().getMinPickaxeLevel()
+                + " para entrar em '" + mine.getId() + "'.";
     }
 
     private String capitalize(String value) {

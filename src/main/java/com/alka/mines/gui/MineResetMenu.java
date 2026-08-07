@@ -68,6 +68,15 @@ public class MineResetMenu {
                                 ChatUtil.parse("<yellow>Clique para alterar")
                         ),
                         event -> promptPercentage(admin, mineId))
+                .item(13, Material.TRIPWIRE_HOOK, ChatUtil.parse("<light_purple><bold>Permissao de Entrada"),
+                        List.of(
+                                ChatUtil.parse("<gray>Atual: <white>" + (mine.getSettings().hasPermission()
+                                        ? mine.getSettings().getPermission() : "Nenhuma (publica)")),
+                                ChatUtil.parse("<gray>Exemplo: <white>alkaminas.mina.vip"),
+                                ChatUtil.parse(""),
+                                ChatUtil.parse("<yellow>Clique para alterar")
+                        ),
+                        event -> promptPermission(admin, mineId))
                 .backButton(22, event -> {
                     admin.closeInventory();
                     if (adminMainMenu != null) {
@@ -89,6 +98,12 @@ public class MineResetMenu {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.PERCENTAGE));
         admin.closeInventory();
         ChatUtil.send(admin, "<yellow>Digite a porcentagem restante para resetar (0 a 100). Digite <red>cancelar</red><yellow> para voltar.");
+    }
+
+    private void promptPermission(Player admin, String mineId) {
+        pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.PERMISSION));
+        admin.closeInventory();
+        ChatUtil.send(admin, "<yellow>Digite a permissao necessaria (ex: alkaminas.mina.vip). Digite <red>remover</red><yellow> para liberar ou <red>cancelar</red><yellow> para voltar.");
     }
 
     /** Chamado direto pelo AdminMainMenu - pula esta tela, vai direto pro chat. */
@@ -128,6 +143,7 @@ public class MineResetMenu {
             case PERCENTAGE -> handlePercentageInput(admin, mine, request, input);
             case CATEGORY -> handleCategoryInput(admin, mine, request, input);
             case RENAME -> handleRenameInput(admin, mine, request, input);
+            case PERMISSION -> handlePermissionInput(admin, mine, request, input);
         }
     }
 
@@ -196,10 +212,22 @@ public class MineResetMenu {
         reopenAfter(Field.RENAME, admin, request.mineId());
     }
 
-    /** INTERVAL/PERCENTAGE voltam pra esta tela (de onde vieram); CATEGORY/RENAME foram
-     *  chamados direto do AdminMainMenu, entao voltam pra la. */
+    private void handlePermissionInput(Player admin, Mine mine, PendingResetInput request, String input) {
+        if (input.equalsIgnoreCase("remover")) {
+            mine.getSettings().setPermission("");
+            ChatUtil.send(admin, "<green>Permissao de entrada removida - mina '" + mine.getId() + "' agora e publica.");
+        } else {
+            mine.getSettings().setPermission(input.trim());
+            ChatUtil.send(admin, "<green>Permissao de entrada da mina '" + mine.getId() + "' definida como '" + input.trim() + "'.");
+        }
+        mineManager.save();
+        reopenAfter(Field.PERMISSION, admin, request.mineId());
+    }
+
+    /** INTERVAL/PERCENTAGE/PERMISSION voltam pra esta tela (de onde vieram); CATEGORY/RENAME
+     *  foram chamados direto do AdminMainMenu, entao voltam pra la. */
     private void reopenAfter(Field field, Player admin, String mineId) {
-        if (field == Field.INTERVAL || field == Field.PERCENTAGE) {
+        if (field == Field.INTERVAL || field == Field.PERCENTAGE || field == Field.PERMISSION) {
             Bukkit.getScheduler().runTask(plugin, () -> open(admin, mineId));
         } else if (adminMainMenu != null) {
             Bukkit.getScheduler().runTask(plugin, () -> adminMainMenu.open(admin, mineId));
@@ -211,7 +239,7 @@ public class MineResetMenu {
     }
 
     private enum Field {
-        INTERVAL, PERCENTAGE, CATEGORY, RENAME
+        INTERVAL, PERCENTAGE, CATEGORY, RENAME, PERMISSION
     }
 
     public record PendingResetInput(String mineId, Field field) {
