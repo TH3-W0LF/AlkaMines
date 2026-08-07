@@ -4,6 +4,7 @@ import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.manager.PlayerMineData;
 import com.alka.mines.model.Mine;
+import com.alka.mines.util.ChatUtil;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -57,7 +58,10 @@ public class PlaceholderHook extends PlaceholderExpansion {
         return switch (params.toLowerCase()) {
             case "mina" -> {
                 String currentId = data.getCurrentMineId();
-                yield currentId == null ? "Nenhuma" : mineManager.getMine(currentId).map(Mine::getDisplayName).orElse("Nenhuma");
+                Mine mine = currentId == null ? null : mineManager.getMine(currentId).orElse(null);
+                // displayName e MiniMessage (editavel via /minaadmin renomear) - scoreboard/TAB
+                // normalmente so entendem codigos & legados, entao converte antes de expor.
+                yield mine == null ? "Nenhuma" : ChatUtil.toLegacy(mine.getDisplayName());
             }
             case "blocos" -> String.format(Locale.US, "%,d", data.getBlocksBroken());
             case "blocos_raw" -> String.valueOf(data.getBlocksBroken());

@@ -1,5 +1,6 @@
 package com.alka.mines.gui;
 
+import com.alka.mines.util.ChatUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -62,6 +63,23 @@ public class MenuBuilder {
             }
         }
         return this;
+    }
+
+    /** Preenche TODOS os slots ainda vazios (nao so a borda) com um item decorativo. */
+    public MenuBuilder fill(Material material) {
+        ItemStack filler = buildItem(material, Component.empty(), List.of());
+        for (int i = 0; i < inventory.getSize(); i++) {
+            if (inventory.getItem(i) == null) {
+                inventory.setItem(i, filler);
+            }
+        }
+        return this;
+    }
+
+    /** Atalho pro botao "Voltar" padrao usado em varios menus deste plugin. */
+    public MenuBuilder backButton(int slot, Consumer<InventoryClickEvent> onClick) {
+        return item(slot, Material.ARROW, ChatUtil.parse("<red><bold>Voltar"),
+                List.of(ChatUtil.parse("<gray>Clique para voltar")), onClick);
     }
 
     public static ItemStack buildItem(Material material, Component displayName, List<Component> lore) {

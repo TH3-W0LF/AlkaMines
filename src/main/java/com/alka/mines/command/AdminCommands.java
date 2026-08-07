@@ -81,6 +81,13 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /** ID de mina vira chave de secao no mines.yml e parte do id do holograma (DHAPI) -
+     * restringe a [a-z0-9_-] pra nunca gerar YAML/holograma invalido a partir de texto
+     * colado com espacos, acentos ou codigos de cor. */
+    private String sanitizeId(String raw) {
+        return raw.toLowerCase().replaceAll("[^a-z0-9_-]", "");
+    }
+
     private void handleCriar(CommandSender sender, String[] args) {
         if (!checkPermission(sender, "criar")) {
             return;
@@ -94,7 +101,11 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
 
-        String id = args[1].toLowerCase();
+        String id = sanitizeId(args[1]);
+        if (id.isEmpty()) {
+            ChatUtil.send(sender, "<red>ID invalido. Use apenas letras, numeros, underscore e hifen.");
+            return;
+        }
         if (mineManager.getMine(id).isPresent()) {
             ChatUtil.send(sender, "<red>Ja existe uma mina com o id '" + id + "'.");
             return;
@@ -119,7 +130,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
 
-        String id = args[1].toLowerCase();
+        String id = sanitizeId(args[1]);
         if (mineManager.deleteMine(id)) {
             hologramManager.delete(id);
             ChatUtil.send(sender, "<green>Mina '" + id + "' deletada.");
@@ -141,7 +152,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
 
-        adminMainMenu.open(player, args[1].toLowerCase());
+        adminMainMenu.open(player, sanitizeId(args[1]));
     }
 
     private void handleResetar(CommandSender sender, String[] args) {
@@ -153,7 +164,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
 
-        String id = args[1].toLowerCase();
+        String id = sanitizeId(args[1]);
         Mine mine = mineManager.getMine(id).orElse(null);
         if (mine == null) {
             ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
@@ -177,7 +188,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
 
-        String id = args[1].toLowerCase();
+        String id = sanitizeId(args[1]);
         Mine mine = mineManager.getMine(id).orElse(null);
         if (mine == null) {
             ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
@@ -246,7 +257,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
 
-        String id = args[1].toLowerCase();
+        String id = sanitizeId(args[1]);
         Mine mine = mineManager.getMine(id).orElse(null);
         if (mine == null) {
             ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);

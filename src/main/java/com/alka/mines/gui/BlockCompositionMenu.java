@@ -74,15 +74,19 @@ public class BlockCompositionMenu {
             inv.setItem(slot++, buildBlockItem(block));
         }
 
-        // preenche TODOS os slots vazios (0-44 sem bloco + 45-53 de navegacao) com o
-        // filler marcado via PDC - sem a marca, um slot "vazio" preenchido com vidro
-        // seria confundido com um bloco real de composicao no handleClick.
+        // preenche TODOS os slots vazios (0-44 sem bloco + 45-53 de navegacao, exceto o
+        // botao de voltar) com o filler marcado via PDC - sem a marca, um slot "vazio"
+        // preenchido com vidro seria confundido com um bloco real de composicao no
+        // handleClick.
         ItemStack filler = buildFiller();
         for (int i = 0; i < 54; i++) {
             if (inv.getItem(i) == null) {
                 inv.setItem(i, filler);
             }
         }
+
+        inv.setItem(49, MenuBuilder.buildItem(Material.ARROW, ChatUtil.parse("<red><bold>Voltar"),
+                List.of(ChatUtil.parse("<gray>Clique para voltar ao menu"))));
 
         admin.openInventory(inv);
     }
@@ -127,6 +131,13 @@ public class BlockCompositionMenu {
         }
 
         int slot = event.getRawSlot();
+        if (slot == 49) {
+            player.closeInventory();
+            if (adminMainMenu != null) {
+                adminMainMenu.open(player, mineId);
+            }
+            return;
+        }
         if (slot < 0 || slot >= 45) {
             return;
         }

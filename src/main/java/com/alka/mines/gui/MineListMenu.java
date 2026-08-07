@@ -45,19 +45,21 @@ public class MineListMenu {
     }
 
     private void openCategories(Player player, Set<String> categories) {
-        MenuBuilder builder = new MenuBuilder(SIZE, ChatUtil.parse("<dark_gray>Categorias de Minas"));
+        MenuBuilder builder = new MenuBuilder(SIZE, ChatUtil.parse("<dark_gray>Categorias de Minas"))
+                .fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
-        int slot = 0;
+        int slot = 10;
         for (String category : categories) {
-            if (slot >= SIZE) {
+            if (slot >= 17) {
                 break;
             }
 
             long count = mineManager.getMines().stream().filter(m -> m.getCategory().equals(category)).count();
 
-            builder.item(slot++, Material.CHEST, ChatUtil.parse("<gold>" + capitalize(category)),
+            builder.item(slot++, Material.CHEST, ChatUtil.parse("<gold><bold>" + capitalize(category)),
                     List.of(
-                            ChatUtil.parse("<gray>" + count + " mina(s)"),
+                            ChatUtil.parse("<gray>Minas disponiveis: <white>" + count),
+                            ChatUtil.parse(""),
                             ChatUtil.parse("<yellow>Clique para ver")
                     ),
                     event -> {
@@ -71,27 +73,30 @@ public class MineListMenu {
 
     public void openMines(Player player, String category) {
         String title = category != null ? "<dark_gray>Minas: " + capitalize(category) : "<dark_gray>Minas Disponiveis";
-        MenuBuilder builder = new MenuBuilder(SIZE, ChatUtil.parse(title));
+        MenuBuilder builder = new MenuBuilder(SIZE, ChatUtil.parse(title))
+                .fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
-        int slot = 0;
+        int slot = 10;
         for (Mine mine : mineManager.getMines()) {
             if (category != null && !mine.getCategory().equals(category)) {
                 continue;
             }
-            if (slot >= SIZE) {
+            if (slot >= 17) {
                 break;
             }
 
             boolean access = canAccess(player, mine);
             Material icon = mine.getIcon() != null ? mine.getIcon() : (access ? Material.LIME_WOOL : Material.RED_WOOL);
             Component name = access
-                    ? ChatUtil.parse("<green>" + mine.getDisplayName())
-                    : ChatUtil.parse("<red>" + mine.getDisplayName());
+                    ? ChatUtil.parse("<green><bold>" + mine.getDisplayName())
+                    : ChatUtil.parse("<red><bold>" + mine.getDisplayName());
 
             List<Component> lore = List.of(
                     ChatUtil.parse("<gray>Nivel necessario: <white>" + mine.getSettings().getMinPickaxeLevel()),
                     ChatUtil.parse("<gray>Blocos compostos: <white>" + mine.getComposition().size() + " tipo(s)"),
-                    ChatUtil.parse(access ? "<green>Clique para entrar" : "<red>Nivel insuficiente")
+                    ChatUtil.parse("<gray>Restantes: <white>" + mine.getBlocksRemaining()),
+                    ChatUtil.parse(""),
+                    access ? ChatUtil.parse("<green>Clique para entrar") : ChatUtil.parse("<red>Nivel insuficiente")
             );
 
             Mine target = mine;
@@ -109,12 +114,10 @@ public class MineListMenu {
         }
 
         if (category != null) {
-            builder.item(SIZE - 5, Material.ARROW, ChatUtil.parse("<white>Voltar"),
-                    List.of(ChatUtil.parse("<gray>Voltar para as categorias")),
-                    event -> {
-                        player.closeInventory();
-                        open(player);
-                    });
+            builder.backButton(SIZE - 5, event -> {
+                player.closeInventory();
+                open(player);
+            });
         }
 
         player.openInventory(builder.build());

@@ -44,19 +44,23 @@ public class AdminMainMenu {
 
         boolean hologramsEnabled = hologramManager.isEnabled();
         Component hologramName = hologramsEnabled
-                ? ChatUtil.parse("<aqua>Setar Holograma")
-                : ChatUtil.parse("<gray>Setar Holograma");
+                ? ChatUtil.parse("<aqua><bold>Setar Holograma")
+                : ChatUtil.parse("<gray><bold>Holograma Offline");
         List<Component> hologramLore = hologramsEnabled
-                ? List.of(ChatUtil.parse("<gray>Clique para spawnar/atualizar"))
-                : List.of(ChatUtil.parse("<red>DH nao encontrado"));
+                ? List.of(
+                        ChatUtil.parse("<gray>Local: <white>" + (mine.getHologramLocation() != null ? "Definido" : "Nao definido")),
+                        ChatUtil.parse(""),
+                        ChatUtil.parse("<yellow>Clique para spawnar/atualizar"))
+                : List.of(ChatUtil.parse("<red>DecentHolograms nao encontrado"));
 
         String iconName = mine.getIcon() != null ? mine.getIcon().name() : "nenhum (usa la verde/vermelha)";
 
         Inventory inv = new MenuBuilder(27, ChatUtil.parse("<dark_gray>Mina: " + mine.getDisplayName()))
                 .fillBorder(Material.PURPLE_STAINED_GLASS_PANE)
-                .item(4, Material.OAK_SIGN, ChatUtil.parse("<gold>Definir Categoria"),
+                .item(4, Material.OAK_SIGN, ChatUtil.parse("<gold><bold>Definir Categoria"),
                         List.of(
                                 ChatUtil.parse("<gray>Atual: <white>" + mine.getCategory()),
+                                ChatUtil.parse(""),
                                 ChatUtil.parse("<yellow>Clique para alterar (ex: vip, pvp, ranking)")
                         ),
                         event -> {
@@ -64,9 +68,10 @@ public class AdminMainMenu {
                                 mineResetMenu.promptCategory(admin, mine.getId());
                             }
                         })
-                .item(11, Material.PAPER, ChatUtil.parse("<yellow>Renomear Mina"),
+                .item(11, Material.PAPER, ChatUtil.parse("<yellow><bold>Renomear Mina"),
                         List.of(
                                 ChatUtil.parse("<gray>Atual: <white>" + mine.getDisplayName()),
+                                ChatUtil.parse(""),
                                 ChatUtil.parse("<yellow>Clique para definir um nome novo")
                         ),
                         event -> {
@@ -74,24 +79,35 @@ public class AdminMainMenu {
                                 mineResetMenu.promptRename(admin, mine.getId());
                             }
                         })
-                .item(10, Material.GRASS_BLOCK, ChatUtil.parse("<green>Composicao de Blocos"),
-                        List.of(ChatUtil.parse("<gray>Clique para editar")),
+                .item(10, Material.GRASS_BLOCK, ChatUtil.parse("<green><bold>Composicao de Blocos"),
+                        List.of(
+                                ChatUtil.parse("<gray>Gerencie os blocos que"),
+                                ChatUtil.parse("<gray>compoem esta mina."),
+                                ChatUtil.parse(""),
+                                ChatUtil.parse("<yellow>Clique para editar")
+                        ),
                         event -> {
                             admin.closeInventory();
                             if (blockCompositionMenu != null) {
                                 blockCompositionMenu.open(admin, mine.getId());
                             }
                         })
-                .item(12, Material.ENDER_PEARL, ChatUtil.parse("<yellow>Definir Spawn"),
-                        List.of(ChatUtil.parse("<gray>Clique para setar spawn no seu pe")),
+                .item(12, Material.ENDER_PEARL, ChatUtil.parse("<aqua><bold>Definir Spawn"),
+                        List.of(
+                                ChatUtil.parse("<gray>Define onde o jogador"),
+                                ChatUtil.parse("<gray>entra nesta mina."),
+                                ChatUtil.parse(""),
+                                ChatUtil.parse("<yellow>Clique para setar spawn no seu pe")
+                        ),
                         event -> {
                             mine.setSpawn(admin.getLocation());
                             mineManager.save();
                             ChatUtil.send(admin, "<green>Spawn da mina '" + mine.getId() + "' atualizado.");
                         })
-                .item(13, Material.NAME_TAG, ChatUtil.parse("<light_purple>Definir Icone"),
+                .item(13, Material.EMERALD, ChatUtil.parse("<light_purple><bold>Definir Icone"),
                         List.of(
                                 ChatUtil.parse("<gray>Atual: <white>" + iconName),
+                                ChatUtil.parse(""),
                                 ChatUtil.parse("<yellow>Segure um item na mao e clique")
                         ),
                         event -> {
@@ -106,8 +122,13 @@ public class AdminMainMenu {
                             admin.closeInventory();
                             open(admin, mine.getId());
                         })
-                .item(14, Material.CLOCK, ChatUtil.parse("<gold>Configurar Reset"),
-                        List.of(ChatUtil.parse("<gray>Tempo e porcentagem")),
+                .item(14, Material.CLOCK, ChatUtil.parse("<gold><bold>Configurar Reset"),
+                        List.of(
+                                ChatUtil.parse("<gray>Tempo e porcentagem"),
+                                ChatUtil.parse("<gray>automatica de reset."),
+                                ChatUtil.parse(""),
+                                ChatUtil.parse("<yellow>Clique para configurar")
+                        ),
                         event -> {
                             admin.closeInventory();
                             if (mineResetMenu != null) {
@@ -127,8 +148,12 @@ public class AdminMainMenu {
                             ChatUtil.send(admin, "<green>Holograma setado em <white>" + loc.getBlockX() + " "
                                     + loc.getBlockY() + " " + loc.getBlockZ() + "</white><green>. Use o menu para atualizar.");
                         })
-                .item(22, Material.BARRIER, ChatUtil.parse("<red>Deletar Mina"),
-                        List.of(ChatUtil.parse("<gray>Shift+Click para confirmar")),
+                .item(22, Material.BARRIER, ChatUtil.parse("<red><bold>Deletar Mina"),
+                        List.of(
+                                ChatUtil.parse("<gray><bold>ATENCAO!</bold> Acao irreversivel."),
+                                ChatUtil.parse(""),
+                                ChatUtil.parse("<red>Shift+Click para confirmar")
+                        ),
                         event -> {
                             if (!event.isShiftClick()) {
                                 ChatUtil.send(admin, "<yellow>Shift+Click para confirmar a exclusao.");

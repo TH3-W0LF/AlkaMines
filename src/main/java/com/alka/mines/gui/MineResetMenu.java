@@ -53,25 +53,27 @@ public class MineResetMenu {
         }
 
         Inventory inv = new MenuBuilder(27, ChatUtil.parse("<dark_gray>Reset: " + mine.getDisplayName()))
-                .item(11, Material.CLOCK, ChatUtil.parse("<gold>Tempo de Reset"),
+                .fillBorder(Material.BLACK_STAINED_GLASS_PANE)
+                .item(11, Material.CLOCK, ChatUtil.parse("<gold><bold>Tempo de Reset"),
                         List.of(
                                 ChatUtil.parse("<gray>Atual: <white>" + mine.getSettings().getResetIntervalMinutes() + " min"),
+                                ChatUtil.parse(""),
                                 ChatUtil.parse("<yellow>Clique para alterar")
                         ),
                         event -> promptInterval(admin, mineId))
-                .item(15, Material.COMPARATOR, ChatUtil.parse("<aqua>Porcentagem Restante"),
+                .item(15, Material.COMPARATOR, ChatUtil.parse("<aqua><bold>Porcentagem Restante"),
                         List.of(
                                 ChatUtil.parse("<gray>Atual: <white>" + trim(mine.getSettings().getResetPercentage()) + "%"),
+                                ChatUtil.parse(""),
                                 ChatUtil.parse("<yellow>Clique para alterar")
                         ),
                         event -> promptPercentage(admin, mineId))
-                .item(22, Material.ARROW, ChatUtil.parse("<white>Voltar"), List.of(),
-                        event -> {
-                            admin.closeInventory();
-                            if (adminMainMenu != null) {
-                                adminMainMenu.open(admin, mineId);
-                            }
-                        })
+                .backButton(22, event -> {
+                    admin.closeInventory();
+                    if (adminMainMenu != null) {
+                        adminMainMenu.open(admin, mineId);
+                    }
+                })
                 .build();
 
         admin.openInventory(inv);
