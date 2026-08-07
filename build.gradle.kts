@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.alkacode"
-version = "1.0.30"
+version = "1.0.31"
 
 java {
     toolchain {
@@ -28,14 +28,14 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
-    // integracao soft - so paga recompensa (ESCARION) se estiver instalado. AlkaCore
-    // e necessario tambem porque AlkaEconomyPlugin agora estende
-    // com.alkacode.core.plugin.AlkaPlugin (o javac precisa da hierarquia completa).
+    // depend hard no plugin.yml (integracao AlkaShop mais profunda planejada), mas o
+    // codigo hoje nao importa nenhuma classe do AlkaCore de verdade - mantido so pra
+    // quando isso mudar.
     compileOnly("com.alkacode:AlkaCore:1.0.0")
-    compileOnly("com.alkacode:AlkaEconomy:1.0.5")
-    // AlkaShop NAO e dependencia de compilacao - AlkaShopHook fala com ele 100% via
-    // reflexao (ver comentario na classe: um import direto de AlkaShopAPI aqui
-    // causava NoClassDefFoundError sem o AlkaShop instalado, mesmo com softdepend).
+    // AlkaEconomy e AlkaShop NAO sao dependencia de compilacao - os hooks falam com
+    // eles 100% via reflexao (ver comentario nas classes: um import direto de
+    // AlkaEconomyPlugin/AlkaShopAPI aqui causava NoClassDefFoundError sem o plugin
+    // instalado, mesmo sendo softdepend).
 
     // FAWE-Bukkit ja embute o WorldEdit inteiro (mesmas classes com.sk89q.worldedit.*,
     // com fastMode/RandomPattern a mais) - cobre selecao (//wand) e reset em massa.
