@@ -1,6 +1,5 @@
 package com.alka.mines.gui;
 
-import com.alka.mines.hook.ItemsAdderHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.model.MineBlock;
@@ -26,15 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Editor de composicao de uma mina: 54 slots, ultima linha (45-53) e so navegacao
- * (vidro cinza), slots 0-44 sao os blocos. Arraste um item do seu inventario pra um
- * slot vazio pra adicionar - se for um bloco custom do ItemsAdder (registrado como
- * bloco de verdade, nao so um item decorativo), entra como tal; qualquer outro item
- * vira um MineBlock pelo Material. Entra sempre com %/XP zerados, configure depois
- * clicando nele. Num bloco ja colocado (cursor vazio): clique esquerdo edita %,
- * clique direito edita XP normal (vanilla), shift+esquerdo edita XP de mcMMO,
- * shift+direito remove (precisa confirmar clicando de novo em ate 5s). Preco de
- * venda NAO e configurado aqui - isso e do AlkaShop agora (preco global por
- * Material, nao por mina).
+ * (vidro cinza), slots 0-44 sao os blocos. Arraste um bloco do seu inventario pra um
+ * slot vazio pra adicionar (entra com %/XP zerados, configure depois clicando nele).
+ * Num bloco ja colocado (cursor vazio): clique esquerdo edita %, clique direito edita
+ * XP normal (vanilla), shift+esquerdo edita XP de mcMMO, shift+direito remove
+ * (precisa confirmar clicando de novo em ate 5s). Preco de venda NAO e configurado
+ * aqui - isso e do AlkaShop agora (preco global por Material, nao por mina).
  * Nao usa MenuBuilder (que so cobre handlers estaticos por slot) porque aqui o slot
  * que recebe o item nao e conhecido de antemao - o clique e sempre interceptado
  * diretamente por {@link BlockCompositionMenuListener}.
@@ -116,30 +112,10 @@ public class BlockCompositionMenu {
         return new NamespacedKey(plugin, "composition_filler");
     }
 
-    private NamespacedKey compositionKeyKey() {
-        return new NamespacedKey(plugin, "composition_key");
-    }
-
-    private String displayName(MineBlock block) {
-        return block.isCustomBlock() ? block.getCustomBlockId() : block.getMaterial().name();
-    }
-
-    /** Bloco custom mostra o item real do ItemsAdder (se disponivel); senao cai pro
-     * Material fallback (STONE) - acontece se o ItemsAdder foi removido do servidor. */
-    private ItemStack resolveDisplayItem(MineBlock block) {
-        if (block.isCustomBlock() && ItemsAdderHook.isEnabled()) {
-            ItemStack custom = ItemsAdderHook.getCustomBlockItem(block.getCustomBlockId());
-            if (custom != null) {
-                return custom;
-            }
-        }
-        return new ItemStack(block.getMaterial());
-    }
-
     private ItemStack buildBlockItem(MineBlock block) {
-        ItemStack item = resolveDisplayItem(block);
+        ItemStack item = new ItemStack(block.getMaterial());
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(ChatUtil.parse("<white>" + displayName(block)));
+        meta.displayName(ChatUtil.parse("<white>" + block.getMaterial().name()));
         meta.lore(List.of(
                 ChatUtil.parse("<gray>Chance: <yellow>" + trim(block.getWeight()) + "%"),
                 ChatUtil.parse("<gray>XP normal: <yellow>" + trim(block.getNormalXp())),
@@ -150,7 +126,6 @@ public class BlockCompositionMenu {
                 ChatUtil.parse("<gray>Shift+esquerdo: <white>editar XP mcMMO"),
                 ChatUtil.parse("<gray>Shift+direito: <white>remover")
         ));
-        meta.getPersistentDataContainer().set(compositionKeyKey(), PersistentDataType.STRING, block.getCompositionKey());
         item.setItemMeta(meta);
         return item;
     }
@@ -184,7 +159,7 @@ public class BlockCompositionMenu {
         boolean slotHasItem = clicked != null && !clicked.getType().isAir() && !isFiller(clicked);
 
         if (cursorHasItem && !slotHasItem) {
-            addBlock(player, mine, cursor);
+            addBlock(player, mine, cursor.getType());
             return;
         }
 
@@ -192,48 +167,32 @@ public class BlockCompositionMenu {
             return;
         }
 
-        String compositionKey = clicked.getItemMeta().getPersistentDataContainer()
-                .get(compositionKeyKey(), PersistentDataType.STRING);
-        if (compositionKey == null) {
-            return;
-        }
+        Material material = clicked.getType();
 
         switch (event.getClick()) {
-            case LEFT -> promptField(player, mineId, compositionKey, Field.WEIGHT);
-            case RIGHT -> promptField(player, mineId, compositionKey, Field.NORMAL_XP);
-            case SHIFT_LEFT -> promptField(player, mineId, compositionKey, Field.MCMMO_XP);
-            case SHIFT_RIGHT -> handleRemoveRequest(player, mineId, compositionKey);
+            case LEFT -> promptField(player, mineId, material, Field.WEIGHT);
+            case RIGHT -> promptField(player, mineId, material, Field.NORMAL_XP);
+            case SHIFT_LEFT -> promptField(player, mineId, material, Field.MCMMO_XP);
+            case SHIFT_RIGHT -> handleRemoveRequest(player, mineId, material);
             default -> {
                 // duplo-clique, tecla de numero, etc. - nao fazem sentido nesse menu, ignora.
             }
         }
     }
 
-    private void addBlock(Player player, Mine mine, ItemStack cursor) {
-        String namespace = ItemsAdderHook.isEnabled() ? ItemsAdderHook.getCustomBlockNamespace(cursor) : null;
-
-        if (namespace != null) {
-            if (mine.getComposition().stream().anyMatch(b -> namespace.equals(b.getCustomBlockId()))) {
-                ChatUtil.send(player, "<red>Esse bloco custom ja esta na composicao - clique nele pra editar.");
-                return;
-            }
-            mine.getComposition().add(new MineBlock(namespace, 0.0));
-        } else {
-            Material material = cursor.getType();
-            if (mine.getComposition().stream().anyMatch(b -> !b.isCustomBlock() && b.getMaterial() == material)) {
-                ChatUtil.send(player, "<red>Esse material ja esta na composicao - clique nele pra editar.");
-                return;
-            }
-            mine.getComposition().add(new MineBlock(material, 0.0));
+    private void addBlock(Player player, Mine mine, Material material) {
+        if (mine.getComposition().stream().anyMatch(b -> b.getMaterial() == material)) {
+            ChatUtil.send(player, "<red>Esse material ja esta na composicao - clique nele pra editar.");
+            return;
         }
-
+        mine.getComposition().add(new MineBlock(material, 0.0));
         mineManager.save();
         player.closeInventory();
         open(player, mine.getId());
     }
 
-    private void promptField(Player player, String mineId, String compositionKey, Field field) {
-        pending.put(player.getUniqueId(), new PendingBlockInput(mineId, compositionKey, field));
+    private void promptField(Player player, String mineId, Material material, Field field) {
+        pending.put(player.getUniqueId(), new PendingBlockInput(mineId, material, field));
         player.closeInventory();
 
         String question = switch (field) {
@@ -245,9 +204,9 @@ public class BlockCompositionMenu {
     }
 
     /** Shift+clique direito exige confirmar clicando de novo no mesmo bloco em ate 5s. */
-    private void handleRemoveRequest(Player player, String mineId, String compositionKey) {
+    private void handleRemoveRequest(Player player, String mineId, Material material) {
         PendingRemoval current = pendingRemoval.get(player.getUniqueId());
-        if (current != null && current.mineId().equals(mineId) && current.compositionKey().equals(compositionKey)
+        if (current != null && current.mineId().equals(mineId) && current.material() == material
                 && current.expiresAtMillis() > System.currentTimeMillis()) {
             pendingRemoval.remove(player.getUniqueId());
 
@@ -255,18 +214,17 @@ public class BlockCompositionMenu {
             if (mine == null) {
                 return;
             }
-            MineBlock block = mine.getCompositionBlock(compositionKey);
-            String name = block != null ? displayName(block) : compositionKey;
-            mine.getComposition().removeIf(b -> b.getCompositionKey().equals(compositionKey));
+            mine.getComposition().removeIf(b -> b.getMaterial() == material);
             mineManager.save();
-            ChatUtil.send(player, "<red>" + name + " removido da composicao.");
+            ChatUtil.send(player, "<red>" + material.name() + " removido da composicao.");
             player.closeInventory();
             open(player, mineId);
             return;
         }
 
-        pendingRemoval.put(player.getUniqueId(), new PendingRemoval(mineId, compositionKey, System.currentTimeMillis() + 5000));
-        ChatUtil.send(player, "<yellow>Shift+clique direito de novo em ate 5s pra confirmar a remocao.");
+        pendingRemoval.put(player.getUniqueId(), new PendingRemoval(mineId, material, System.currentTimeMillis() + 5000));
+        ChatUtil.send(player, "<yellow>Shift+clique direito de novo em ate 5s pra confirmar a remocao de <white>"
+                + material.name() + "</white><yellow>.");
     }
 
     /**
@@ -291,7 +249,7 @@ public class BlockCompositionMenu {
             return;
         }
 
-        MineBlock block = mine.getCompositionBlock(request.compositionKey());
+        MineBlock block = mine.getCompositionBlock(request.material());
         if (block == null) {
             ChatUtil.send(player, "<red>Esse bloco nao esta mais na composicao.");
             return;
@@ -334,7 +292,7 @@ public class BlockCompositionMenu {
 
         block.setWeight(percentage);
         mineManager.save();
-        ChatUtil.send(player, "<green>" + displayName(block) + " agora aparece " + trim(percentage) + "% das vezes.");
+        ChatUtil.send(player, "<green>" + block.getMaterial().name() + " agora aparece " + trim(percentage) + "% das vezes.");
         reopen(player, request.mineId());
     }
 
@@ -360,7 +318,7 @@ public class BlockCompositionMenu {
             block.setNormalXp(xp);
         }
         mineManager.save();
-        ChatUtil.send(player, "<green>" + displayName(block) + " agora da " + trim(xp) + " XP "
+        ChatUtil.send(player, "<green>" + block.getMaterial().name() + " agora da " + trim(xp) + " XP "
                 + (mcmmo ? "de mcMMO" : "normal") + " ao quebrar.");
         reopen(player, request.mineId());
     }
@@ -384,9 +342,9 @@ public class BlockCompositionMenu {
         WEIGHT, NORMAL_XP, MCMMO_XP
     }
 
-    public record PendingBlockInput(String mineId, String compositionKey, Field field) {
+    public record PendingBlockInput(String mineId, Material material, Field field) {
     }
 
-    private record PendingRemoval(String mineId, String compositionKey, long expiresAtMillis) {
+    private record PendingRemoval(String mineId, Material material, long expiresAtMillis) {
     }
 }

@@ -44,11 +44,10 @@ pickaxe-levels:
   9: 20000000
 
 # XP do mcMMO (skill Mineracao) por bloco quebrado dentro de uma mina - so tem
-# efeito com o mcMMO instalado (ver McMMOHook). Chave = nome do Material do Bukkit,
-# OU o namespace de um bloco custom do ItemsAdder (ex: "myitems:ruby_ore"). Serve so
-# de FALLBACK global: se o bloco tiver um XP de mcMMO definido direto na composicao
-# da mina (menu Composicao de Blocos -> clique direito/shift+esquerdo no bloco), esse
-# valor por bloco sempre tem prioridade sobre esta tabela.
+# efeito com o mcMMO instalado (ver McMMOHook). Chave = nome do Material do Bukkit.
+# Serve so de FALLBACK global: se o bloco tiver um XP de mcMMO definido direto na
+# composicao da mina (menu Composicao de Blocos -> clique direito/shift+esquerdo no
+# bloco), esse valor por bloco sempre tem prioridade sobre esta tabela.
 mcmmo-xp:
   STONE: 1.0
   DEEPSLATE: 1.0
@@ -72,5 +71,3 @@ mcmmo-xp:
   ANCIENT_DEBRIS: 8.0
   NETHER_QUARTZ_ORE: 2.0
   NETHER_GOLD_ORE: 3.0
-  # Exemplo com bloco custom do ItemsAdder:
-  # myitems:ruby_ore: 10.0

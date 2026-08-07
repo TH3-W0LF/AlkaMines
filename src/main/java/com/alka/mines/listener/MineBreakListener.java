@@ -2,7 +2,6 @@ package com.alka.mines.listener;
 
 import com.alka.mines.hook.AdvancedEnchantmentsHook;
 import com.alka.mines.hook.AlkaShopHook;
-import com.alka.mines.hook.ItemsAdderHook;
 import com.alka.mines.hook.McMMOHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PickaxeLevelManager;
@@ -47,16 +46,6 @@ import java.util.Optional;
  * chegou ate aqui, cancelamos o evento NOS MESMOS e assumimos o controle manual
  * completo (drops e remocao do bloco) em vez de deixar o vanilla processar em cima
  * de um bloco que ja modificamos.
- *
- * EXCECAO: bloco custom do ItemsAdder. NAO cancelamos o evento pra esses - o
- * ItemsAdder mantem estado interno por bloco (luz, hologram, etc) e so o dropa
- * corretamente se o proprio evento seguir seu curso normal. Cancelar e remover via
- * setType(AIR) como fazemos pros blocos normais deixa o ItemsAdder com um bloco
- * "fantasma" pro cliente (nunca avisado da remocao) e o drop correto nunca acontece
- * (o vanilla dropa o Material base, nao o item custom). Pra bloco custom so fazemos
- * o que e nosso mesmo (XP, contagem de progresso) e deixamos o resto pro
- * ItemsAdder/vanilla - com a limitacao de que a auto-venda do AlkaShop nao rola
- * pra esse drop, ja que ele nunca passa pelo nosso pipeline de inventario.
  *
  * Nota: cancelar aqui faz qualquer plugin de log/anti-grief registrado em MONITOR
  * (ex: CoreProtect) ver isCancelled()=true - se algum desses plugins decidir NAO
@@ -105,16 +94,8 @@ public class MineBreakListener implements Listener {
 
         // entrada da composicao que corresponde a este bloco (null se nao configurado) -
         // traz os overrides de %/XP definidos direto no BlockCompositionMenu. Precisa
-        // ser resolvido AGORA, antes de qualquer remocao (usa o Material/namespace original).
+        // ser resolvido AGORA, antes de qualquer remocao (usa o Material original).
         MineBlock compositionBlock = resolveCompositionBlock(mine, block);
-
-        if (ItemsAdderHook.isCustomBlock(block)) {
-            // ver javadoc da classe - nao cancelamos, deixamos o ItemsAdder/vanilla
-            // processarem a quebra e o drop custom sozinhos.
-            trackProgress(player, mine);
-            applyXp(player, block, compositionBlock);
-            return;
-        }
 
         // drops calculados com o bloco ainda no tipo original, ANTES de cancelar/remover.
         Collection<ItemStack> drops = block.getDrops(player.getInventory().getItemInMainHand());
@@ -168,21 +149,10 @@ public class MineBreakListener implements Listener {
         }
     }
 
-    /** Acha a entrada da composicao correspondente ao bloco quebrado - checa namespace
-     * do ItemsAdder primeiro (bloco custom "de verdade"), Material vanilla depois. */
+    /** Acha a entrada da composicao correspondente ao Material do bloco quebrado. */
     private MineBlock resolveCompositionBlock(Mine mine, Block block) {
-        if (ItemsAdderHook.isEnabled()) {
-            String namespace = ItemsAdderHook.getBlockNamespace(block);
-            if (namespace != null) {
-                for (MineBlock candidate : mine.getComposition()) {
-                    if (candidate.isCustomBlock() && namespace.equals(candidate.getCustomBlockId())) {
-                        return candidate;
-                    }
-                }
-            }
-        }
         for (MineBlock candidate : mine.getComposition()) {
-            if (!candidate.isCustomBlock() && candidate.getMaterial() == block.getType()) {
+            if (candidate.getMaterial() == block.getType()) {
                 return candidate;
             }
         }

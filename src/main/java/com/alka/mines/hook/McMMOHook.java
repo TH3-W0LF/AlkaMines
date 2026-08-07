@@ -18,8 +18,8 @@ import java.util.Optional;
  * uma mina. Prioridade do valor de XP: 1) override por bloco configurado direto na
  * composicao da mina via BlockCompositionMenu (MineBlock#getMcmmoXp - editavel em
  * jogo, sem precisar de reload); 2) tabela global `mcmmo-xp` do config.yml (Material
- * -> XP, ou namespace do ItemsAdder). Integracao soft: sem mcMMO instalado o hook
- * nem existe e MineBreakListener so pula a chamada (ver Optional<McMMOHook>).
+ * -> XP). Integracao soft: sem mcMMO instalado o hook nem existe e MineBreakListener
+ * so pula a chamada (ver Optional<McMMOHook>).
  */
 public final class McMMOHook {
 
@@ -58,13 +58,6 @@ public final class McMMOHook {
         }
 
         double xp = xpTable.getOrDefault(normalize(block.getType().name()), 0.0);
-
-        if (xp == 0.0 && ItemsAdderHook.isEnabled()) {
-            String namespace = ItemsAdderHook.getBlockNamespace(block);
-            if (namespace != null) {
-                xp = xpTable.getOrDefault(normalize(namespace), 0.0);
-            }
-        }
 
         if (xp > 0) {
             ExperienceAPI.addRawXP(player, "Mining", (float) xp, "UNKNOWN");

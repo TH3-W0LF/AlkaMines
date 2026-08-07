@@ -121,11 +121,7 @@ public class MineManager {
             List<Map<String, Object>> compositionList = new ArrayList<>();
             for (MineBlock block : mine.getComposition()) {
                 Map<String, Object> entry = new LinkedHashMap<>();
-                if (block.isCustomBlock()) {
-                    entry.put("custom-block", block.getCustomBlockId());
-                } else {
-                    entry.put("material", block.getMaterial().name());
-                }
+                entry.put("material", block.getMaterial().name());
                 entry.put("weight", block.getWeight());
                 entry.put("xp-normal", block.getNormalXp());
                 entry.put("xp-mcmmo", block.getMcmmoXp());
@@ -221,20 +217,13 @@ public class MineManager {
 
             List<MineBlock> composition = new ArrayList<>();
             for (Map<?, ?> entry : section.getMapList("composition")) {
-                double weight = entry.get("weight") instanceof Number number ? number.doubleValue() : 0.0;
-                Object customBlock = entry.get("custom-block");
-
-                MineBlock mineBlock;
-                if (customBlock != null && !String.valueOf(customBlock).isEmpty()) {
-                    mineBlock = new MineBlock(String.valueOf(customBlock), weight);
-                } else {
-                    Material material = Material.matchMaterial(String.valueOf(entry.get("material")));
-                    if (material == null) {
-                        continue;
-                    }
-                    mineBlock = new MineBlock(material, weight);
+                Material material = Material.matchMaterial(String.valueOf(entry.get("material")));
+                if (material == null) {
+                    continue;
                 }
+                double weight = entry.get("weight") instanceof Number number ? number.doubleValue() : 0.0;
 
+                MineBlock mineBlock = new MineBlock(material, weight);
                 mineBlock.setNormalXp(entry.get("xp-normal") instanceof Number number ? number.doubleValue() : 0.0);
                 mineBlock.setMcmmoXp(entry.get("xp-mcmmo") instanceof Number number ? number.doubleValue() : 0.0);
                 composition.add(mineBlock);

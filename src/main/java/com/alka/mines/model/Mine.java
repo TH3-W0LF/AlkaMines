@@ -102,10 +102,10 @@ public class Mine {
         return composition;
     }
 
-    /** MineBlock da composicao com essa chave (ver MineBlock#getCompositionKey), ou null se nao estiver configurado. */
-    public MineBlock getCompositionBlock(String compositionKey) {
+    /** Primeiro MineBlock da composicao com esse material, ou null se o material nao estiver configurado. */
+    public MineBlock getCompositionBlock(Material material) {
         for (MineBlock block : composition) {
-            if (block.getCompositionKey().equals(compositionKey)) {
+            if (block.getMaterial() == material) {
                 return block;
             }
         }
