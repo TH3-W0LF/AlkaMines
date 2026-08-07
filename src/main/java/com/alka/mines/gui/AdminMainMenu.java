@@ -127,7 +127,7 @@ public class AdminMainMenu {
 
                             if (namespace != null) {
                                 mine.setIconItemsAdder(namespace);
-                                mine.setIcon(null);
+                                mine.setIcon(held.getType()); // fallback pra quando o item sair do registro do ItemsAdder
                                 ChatUtil.send(admin, "<green>Icone da mina '" + mine.getId()
                                         + "' definido como item custom '" + namespace + "'.");
                             } else {

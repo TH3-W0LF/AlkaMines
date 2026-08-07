@@ -4,6 +4,7 @@ import com.alka.mines.event.MineResetEvent;
 import com.alka.mines.hook.FAWEHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
+import com.alka.mines.model.MineBlock;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -11,9 +12,14 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 /**
  * Orquestra o reset de uma mina: teleporta jogadores (sync, API do Bukkit), roda o
- * FAWEHook fora da main thread (FAWE e seguro pra isso, ao contrario do bloco por
- * bloco do Bukkit puro) e so entao atualiza o estado + dispara o evento, de volta na
- * main thread.
+ * FAWEHook e so entao atualiza o estado + dispara o evento, de volta na main thread.
+ *
+ * O reset puro por FAWE (EditSession/RandomPattern) e seguro fora da main thread.
+ * Mas se a composicao tiver bloco custom do ItemsAdder, FAWEHook cai pro reset
+ * hibrido bloco-a-bloco (ver FAWEHook#resetWithCustomBlocks), que chama
+ * Block#setType e CustomBlock.place diretamente - APIs do Bukkit/ItemsAdder que
+ * NAO sao seguras fora da main thread. Por isso o reset roda inteiro sincrono
+ * quando ha bloco custom, e so cai pra async quando e FAWE puro.
  */
 public class MineResetService {
 
@@ -26,21 +32,31 @@ public class MineResetService {
     public void reset(Mine mine) {
         teleportPlayersOut(mine);
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            FAWEHook.resetRegion(mine.getRegion(), mine.getComposition());
+        boolean hasCustomBlocks = mine.getComposition().stream().anyMatch(MineBlock::isCustomBlock);
 
+        if (hasCustomBlocks) {
             Bukkit.getScheduler().runTask(plugin, () -> {
-                mine.setLastReset(System.currentTimeMillis());
-                mine.setBlocksRemaining((int) Math.min(mine.getRegion().getVolume(), Integer.MAX_VALUE));
-
-                MineManager manager = MineManager.getInstance();
-                if (manager != null) {
-                    manager.save();
-                }
-
-                Bukkit.getPluginManager().callEvent(new MineResetEvent(mine));
+                FAWEHook.resetRegion(mine.getRegion(), mine.getComposition());
+                finishReset(mine);
             });
-        });
+        } else {
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                FAWEHook.resetRegion(mine.getRegion(), mine.getComposition());
+                Bukkit.getScheduler().runTask(plugin, () -> finishReset(mine));
+            });
+        }
+    }
+
+    private void finishReset(Mine mine) {
+        mine.setLastReset(System.currentTimeMillis());
+        mine.setBlocksRemaining((int) Math.min(mine.getRegion().getVolume(), Integer.MAX_VALUE));
+
+        MineManager manager = MineManager.getInstance();
+        if (manager != null) {
+            manager.save();
+        }
+
+        Bukkit.getPluginManager().callEvent(new MineResetEvent(mine));
     }
 
     private void teleportPlayersOut(Mine mine) {

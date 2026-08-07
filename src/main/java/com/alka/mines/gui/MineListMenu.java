@@ -1,5 +1,6 @@
 package com.alka.mines.gui;
 
+import com.alka.mines.hook.ItemsAdderHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.model.Mine;
@@ -7,6 +8,8 @@ import com.alka.mines.util.ChatUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -87,7 +90,6 @@ public class MineListMenu {
             }
 
             boolean access = canAccess(player, mine);
-            Material icon = mine.getIcon() != null ? mine.getIcon() : (access ? Material.LIME_WOOL : Material.RED_WOOL);
             Component name = access
                     ? ChatUtil.parse("<green><bold>" + mine.getDisplayName())
                     : ChatUtil.parse("<red><bold>" + mine.getDisplayName());
@@ -100,8 +102,14 @@ public class MineListMenu {
                     access ? ChatUtil.parse("<green>Clique para entrar") : ChatUtil.parse(denyReason(player, mine))
             );
 
+            ItemStack icon = resolveIcon(mine, access);
+            ItemMeta iconMeta = icon.getItemMeta();
+            iconMeta.displayName(name);
+            iconMeta.lore(lore);
+            icon.setItemMeta(iconMeta);
+
             Mine target = mine;
-            builder.item(slot++, icon, name, lore, event -> {
+            builder.item(slot++, icon, event -> {
                 if (!access) {
                     ChatUtil.send(player, denyMessage(player, target));
                     return;
@@ -121,6 +129,19 @@ public class MineListMenu {
         }
 
         player.openInventory(builder.build());
+    }
+
+    /** Icone custom do ItemsAdder tem prioridade; cai pro Material (icon manual ou
+     * la verde/vermelha padrao) se nao houver icone custom ou ele sumir do registro. */
+    private ItemStack resolveIcon(Mine mine, boolean access) {
+        if (mine.getIconItemsAdder() != null && ItemsAdderHook.isEnabled()) {
+            ItemStack custom = ItemsAdderHook.getCustomItem(mine.getIconItemsAdder());
+            if (custom != null) {
+                return custom;
+            }
+        }
+        Material fallback = mine.getIcon() != null ? mine.getIcon() : (access ? Material.LIME_WOOL : Material.RED_WOOL);
+        return new ItemStack(fallback);
     }
 
     private boolean canAccess(Player player, Mine mine) {
