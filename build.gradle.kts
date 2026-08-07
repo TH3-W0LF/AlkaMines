@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.alkacode"
-version = "1.0.29"
+version = "1.0.30"
 
 java {
     toolchain {
@@ -33,11 +33,9 @@ dependencies {
     // com.alkacode.core.plugin.AlkaPlugin (o javac precisa da hierarquia completa).
     compileOnly("com.alkacode:AlkaCore:1.0.0")
     compileOnly("com.alkacode:AlkaEconomy:1.0.5")
-    // integracao soft - so consulta AlkaShopAPI#isAutoSellActive/sellItem se o
-    // plugin estiver instalado (publicado via `./gradlew publishToMavenLocal` no
-    // projeto AlkaShop). A mina NAO guarda nenhum preco - so pergunta "devo vender
-    // isso pra este jogador?" e deixa o AlkaShop decidir o preco.
-    compileOnly("com.alkacode:AlkaShop:1.0.1")
+    // AlkaShop NAO e dependencia de compilacao - AlkaShopHook fala com ele 100% via
+    // reflexao (ver comentario na classe: um import direto de AlkaShopAPI aqui
+    // causava NoClassDefFoundError sem o AlkaShop instalado, mesmo com softdepend).
 
     // FAWE-Bukkit ja embute o WorldEdit inteiro (mesmas classes com.sk89q.worldedit.*,
     // com fastMode/RandomPattern a mais) - cobre selecao (//wand) e reset em massa.
