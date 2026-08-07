@@ -1,5 +1,6 @@
 package com.alka.mines.listener;
 
+import com.alka.mines.hook.ItemsAdderHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
 import org.bukkit.Material;
@@ -57,7 +58,17 @@ public class MineProtectionListener implements Listener {
 
         if (mine.containsMining(event.getBlock().getLocation())) {
             Material blockType = event.getBlock().getType();
-            boolean isMineable = mine.getComposition().stream().anyMatch(b -> b.getMaterial() == blockType);
+            boolean isMineable = mine.getComposition().stream()
+                    .anyMatch(b -> !b.isCustomBlock() && b.getMaterial() == blockType);
+
+            if (!isMineable && ItemsAdderHook.isEnabled()) {
+                String namespace = ItemsAdderHook.getBlockNamespace(event.getBlock());
+                if (namespace != null) {
+                    isMineable = mine.getComposition().stream()
+                            .anyMatch(b -> b.isCustomBlock() && namespace.equals(b.getCustomBlockId()));
+                }
+            }
+
             if (isMineable) {
                 return;
             }

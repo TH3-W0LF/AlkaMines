@@ -67,15 +67,14 @@ public final class AlkaMines extends JavaPlugin {
                 new MineCommandBlockerListener(mineManager, getConfig().getStringList("mine-protection.blocked-commands")),
                 this);
 
-        var shopHook = AlkaShopHook.tryHook(this);
-        getServer().getPluginManager().registerEvents(
-                new MineBreakListener(mineManager, playerDataManager, levelManager, shopHook), this);
-
-        // Deteccao de presenca apenas por enquanto - sem chamada de API ainda (ver pacote hook).
-        AdvancedEnchantmentsHook.tryHook(this);
-        McMMOHook.tryHook(this);
         ItemsAdderHook.tryHook(this);
         BossesProHook.tryHook(this);
+
+        var shopHook = AlkaShopHook.tryHook(this);
+        var mcmmoHook = McMMOHook.tryHook(this);
+        var aeHook = AdvancedEnchantmentsHook.tryHook(this);
+        getServer().getPluginManager().registerEvents(
+                new MineBreakListener(mineManager, playerDataManager, levelManager, shopHook, mcmmoHook, aeHook), this);
 
         AdminCommands adminCommands = new AdminCommands(mineManager, worldEditHook, adminMainMenu, resetService,
                 playerDataManager, hologramManager);

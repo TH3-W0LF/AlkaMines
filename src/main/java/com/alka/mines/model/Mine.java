@@ -21,6 +21,7 @@ public class Mine {
     private int blocksRemaining;
     private String category;
     private Material icon;
+    private String iconItemsAdder; // namespace do ItemsAdder - tem prioridade sobre icon quando definido
 
     public Mine(String id, String displayName, MineRegion region) {
         this.id = id;
@@ -36,6 +37,7 @@ public class Mine {
         this.blocksRemaining = (int) Math.min(region.getVolume(), Integer.MAX_VALUE);
         this.category = "geral";
         this.icon = null;
+        this.iconItemsAdder = null;
     }
 
     public String getId() {
@@ -100,10 +102,10 @@ public class Mine {
         return composition;
     }
 
-    /** Primeiro MineBlock da composicao com esse material, ou null se o material nao estiver configurado. */
-    public MineBlock getCompositionBlock(Material material) {
+    /** MineBlock da composicao com essa chave (ver MineBlock#getCompositionKey), ou null se nao estiver configurado. */
+    public MineBlock getCompositionBlock(String compositionKey) {
         for (MineBlock block : composition) {
-            if (block.getMaterial() == material) {
+            if (block.getCompositionKey().equals(compositionKey)) {
                 return block;
             }
         }
@@ -168,5 +170,16 @@ public class Mine {
 
     public void setIcon(Material icon) {
         this.icon = icon;
+    }
+
+    /** Null = sem icone custom do ItemsAdder - quando definido, tem prioridade sobre
+     * {@link #getIcon()} na renderizacao (renderizacao em si ainda nao implementada -
+     * so o dado persiste por enquanto, ver MineManager). */
+    public String getIconItemsAdder() {
+        return iconItemsAdder;
+    }
+
+    public void setIconItemsAdder(String iconItemsAdder) {
+        this.iconItemsAdder = iconItemsAdder;
     }
 }

@@ -1,6 +1,7 @@
 package com.alka.mines.gui;
 
 import com.alka.mines.hologram.HologramManager;
+import com.alka.mines.hook.ItemsAdderHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.util.ChatUtil;
@@ -53,7 +54,8 @@ public class AdminMainMenu {
                         ChatUtil.parse("<yellow>Clique para spawnar/atualizar"))
                 : List.of(ChatUtil.parse("<red>DecentHolograms nao encontrado"));
 
-        String iconName = mine.getIcon() != null ? mine.getIcon().name() : "nenhum (usa la verde/vermelha)";
+        String iconName = mine.getIconItemsAdder() != null ? "ItemsAdder: " + mine.getIconItemsAdder()
+                : mine.getIcon() != null ? mine.getIcon().name() : "nenhum (usa la verde/vermelha)";
 
         Inventory inv = new MenuBuilder(27, ChatUtil.parse("<dark_gray>Mina: " + mine.getDisplayName()))
                 .fillBorder(Material.PURPLE_STAINED_GLASS_PANE)
@@ -108,7 +110,8 @@ public class AdminMainMenu {
                         List.of(
                                 ChatUtil.parse("<gray>Atual: <white>" + iconName),
                                 ChatUtil.parse(""),
-                                ChatUtil.parse("<yellow>Segure um item na mao e clique")
+                                ChatUtil.parse("<yellow>Segure um item na mao e clique"),
+                                ChatUtil.parse("<yellow>(aceita itens/blocos custom do ItemsAdder)")
                         ),
                         event -> {
                             ItemStack held = admin.getInventory().getItemInMainHand();
@@ -116,9 +119,25 @@ public class AdminMainMenu {
                                 ChatUtil.send(admin, "<red>Segure um item na mao pra usar como icone.");
                                 return;
                             }
-                            mine.setIcon(held.getType());
+
+                            // icone e so cosmetico (nunca colocado no mundo) - aceita QUALQUER
+                            // stack custom do ItemsAdder, nao so blocos placeaveis.
+                            String namespace = ItemsAdderHook.isEnabled()
+                                    ? ItemsAdderHook.getCustomStackNamespace(held) : null;
+
+                            if (namespace != null) {
+                                mine.setIconItemsAdder(namespace);
+                                mine.setIcon(null);
+                                ChatUtil.send(admin, "<green>Icone da mina '" + mine.getId()
+                                        + "' definido como item custom '" + namespace + "'.");
+                            } else {
+                                mine.setIcon(held.getType());
+                                mine.setIconItemsAdder(null);
+                                ChatUtil.send(admin, "<green>Icone da mina '" + mine.getId() + "' definido como "
+                                        + held.getType().name() + ".");
+                            }
+
                             mineManager.save();
-                            ChatUtil.send(admin, "<green>Icone da mina '" + mine.getId() + "' definido como " + held.getType().name() + ".");
                             admin.closeInventory();
                             open(admin, mine.getId());
                         })

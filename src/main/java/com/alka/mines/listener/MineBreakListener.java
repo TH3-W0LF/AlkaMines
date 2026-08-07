@@ -1,11 +1,15 @@
 package com.alka.mines.listener;
 
+import com.alka.mines.hook.AdvancedEnchantmentsHook;
 import com.alka.mines.hook.AlkaShopHook;
+import com.alka.mines.hook.ItemsAdderHook;
+import com.alka.mines.hook.McMMOHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PickaxeLevelManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.manager.PlayerMineData;
 import com.alka.mines.model.Mine;
+import com.alka.mines.model.MineBlock;
 import com.alka.mines.util.ChatUtil;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -58,13 +62,18 @@ public class MineBreakListener implements Listener {
     private final PlayerDataManager playerDataManager;
     private final PickaxeLevelManager levelManager;
     private final Optional<AlkaShopHook> shopHook;
+    private final Optional<McMMOHook> mcmmoHook;
+    private final Optional<AdvancedEnchantmentsHook> aeHook;
 
     public MineBreakListener(MineManager mineManager, PlayerDataManager playerDataManager,
-                              PickaxeLevelManager levelManager, Optional<AlkaShopHook> shopHook) {
+                              PickaxeLevelManager levelManager, Optional<AlkaShopHook> shopHook,
+                              Optional<McMMOHook> mcmmoHook, Optional<AdvancedEnchantmentsHook> aeHook) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
         this.levelManager = levelManager;
         this.shopHook = shopHook;
+        this.mcmmoHook = mcmmoHook;
+        this.aeHook = aeHook;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -80,12 +89,26 @@ public class MineBreakListener implements Listener {
             return;
         }
 
+        // AdvancedEnchantments processa BlockBreakEvent em HIGH - precisa rodar ANTES
+        // de cancelarmos o evento em HIGHEST, senao os efeitos/encantamentos dele nunca disparam.
+        aeHook.ifPresent(hook -> hook.processBlockBreak(player, block));
+
+        // entrada da composicao que corresponde a este bloco (null se nao configurado) -
+        // traz os overrides de %/XP definidos direto no BlockCompositionMenu. Precisa
+        // ser resolvido ANTES do setType(AIR) logo abaixo (usa o Material/namespace original).
+        MineBlock compositionBlock = resolveCompositionBlock(mine, block);
+
         // drops calculados com o bloco ainda no tipo original, ANTES de cancelar/remover.
         Collection<ItemStack> drops = block.getDrops(player.getInventory().getItemInMainHand());
 
         event.setCancelled(true);
         event.setDropItems(false);
         event.setExpToDrop(0);
+
+        mcmmoHook.ifPresent(hook -> hook.addMiningXp(player, block, compositionBlock));
+        if (compositionBlock != null && compositionBlock.getNormalXp() > 0) {
+            player.giveExp((int) Math.round(compositionBlock.getNormalXp()));
+        }
 
         // applyPhysics=true aqui gera ghost block: o servidor processa fisica
         // (redstone/luz/blocos adjacentes) em cima de um BlockBreakEvent que ele acha
@@ -117,6 +140,27 @@ public class MineBreakListener implements Listener {
         if (!actionBar.isEmpty()) {
             player.sendActionBar(ChatUtil.parse(actionBar.toString()));
         }
+    }
+
+    /** Acha a entrada da composicao correspondente ao bloco quebrado - checa namespace
+     * do ItemsAdder primeiro (bloco custom "de verdade"), Material vanilla depois. */
+    private MineBlock resolveCompositionBlock(Mine mine, Block block) {
+        if (ItemsAdderHook.isEnabled()) {
+            String namespace = ItemsAdderHook.getBlockNamespace(block);
+            if (namespace != null) {
+                for (MineBlock candidate : mine.getComposition()) {
+                    if (candidate.isCustomBlock() && namespace.equals(candidate.getCustomBlockId())) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        for (MineBlock candidate : mine.getComposition()) {
+            if (!candidate.isCustomBlock() && candidate.getMaterial() == block.getType()) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private void announceLevelUp(Player player, PlayerMineData data) {

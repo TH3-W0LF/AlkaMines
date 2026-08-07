@@ -105,6 +105,7 @@ public class MineManager {
             section.set("hologram", mine.getHologramLocation());
             section.set("category", mine.getCategory());
             section.set("icon", mine.getIcon() != null ? mine.getIcon().name() : null);
+            section.set("icon-itemsadder", mine.getIconItemsAdder());
 
             MineSettings settings = mine.getSettings();
             ConfigurationSection settingsSection = section.createSection("settings");
@@ -120,8 +121,14 @@ public class MineManager {
             List<Map<String, Object>> compositionList = new ArrayList<>();
             for (MineBlock block : mine.getComposition()) {
                 Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("material", block.getMaterial().name());
+                if (block.isCustomBlock()) {
+                    entry.put("custom-block", block.getCustomBlockId());
+                } else {
+                    entry.put("material", block.getMaterial().name());
+                }
                 entry.put("weight", block.getWeight());
+                entry.put("xp-normal", block.getNormalXp());
+                entry.put("xp-mcmmo", block.getMcmmoXp());
                 compositionList.add(entry);
             }
             section.set("composition", compositionList);
@@ -196,6 +203,7 @@ public class MineManager {
             if (iconName != null) {
                 mine.setIcon(Material.matchMaterial(iconName));
             }
+            mine.setIconItemsAdder(section.getString("icon-itemsadder"));
 
             ConfigurationSection settingsSection = section.getConfigurationSection("settings");
             if (settingsSection != null) {
@@ -213,12 +221,23 @@ public class MineManager {
 
             List<MineBlock> composition = new ArrayList<>();
             for (Map<?, ?> entry : section.getMapList("composition")) {
-                Material material = Material.matchMaterial(String.valueOf(entry.get("material")));
-                if (material == null) {
-                    continue;
-                }
                 double weight = entry.get("weight") instanceof Number number ? number.doubleValue() : 0.0;
-                composition.add(new MineBlock(material, weight));
+                Object customBlock = entry.get("custom-block");
+
+                MineBlock mineBlock;
+                if (customBlock != null && !String.valueOf(customBlock).isEmpty()) {
+                    mineBlock = new MineBlock(String.valueOf(customBlock), weight);
+                } else {
+                    Material material = Material.matchMaterial(String.valueOf(entry.get("material")));
+                    if (material == null) {
+                        continue;
+                    }
+                    mineBlock = new MineBlock(material, weight);
+                }
+
+                mineBlock.setNormalXp(entry.get("xp-normal") instanceof Number number ? number.doubleValue() : 0.0);
+                mineBlock.setMcmmoXp(entry.get("xp-mcmmo") instanceof Number number ? number.doubleValue() : 0.0);
+                composition.add(mineBlock);
             }
             mine.setComposition(composition);
 

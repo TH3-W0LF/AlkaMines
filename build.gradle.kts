@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.alkacode"
-version = "1.0.23"
+version = "1.0.25"
 
 java {
     toolchain {
@@ -21,6 +21,8 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://jitpack.io")
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
+    // mcMMO nao publica no Maven Central/jitpack - so no proprio Nexus deles.
+    maven("https://nexus.neetgames.com/repository/maven-public/")
 }
 
 dependencies {
@@ -53,6 +55,18 @@ dependencies {
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") {
         exclude(group = "org.bukkit", module = "bukkit")
     }
+    // integracao soft - so da XP de Mineracao se estiver instalado (ver McMMOHook).
+    // exclui WorldGuard: e dependencia transitiva do mcMMO (deteccao de regiao pra
+    // XP), mas o pom dele aponta pra um snapshot (worldguard-legacy 7.0.0-SNAPSHOT)
+    // que nao existe em nenhum repo publico configurado - so usamos ExperienceAPI,
+    // que nao precisa disso pra compilar.
+    compileOnly("com.gmail.nossr50.mcMMO:mcMMO:2.2.054") {
+        exclude(group = "com.sk89q.worldguard")
+    }
+    // integracao soft - blocos/itens custom na composicao de mina (ver ItemsAdderHook).
+    // servido via jitpack (ja declarado acima), nao pelo Nexus do mcMMO. Nao existe tag
+    // 3.6.4 no jitpack - 3.6.1 e a release estavel mais proxima disponivel.
+    compileOnly("com.github.LoneDev6:API-ItemsAdder:3.6.1")
 }
 
 tasks.withType<JavaCompile> {
