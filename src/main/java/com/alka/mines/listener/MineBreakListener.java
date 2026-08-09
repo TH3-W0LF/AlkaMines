@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Unico ponto que faz a mina "funcionar de verdade": entrega o drop real do bloco
@@ -73,19 +74,30 @@ public class MineBreakListener implements Listener {
     private final Optional<AlkaShopHook> shopHook;
     private final Optional<McMMOHook> mcmmoHook;
     private final Optional<AdvancedEnchantmentsHook> aeHook;
-    private final Optional<AlkaDropHook> dropHook;
+    /**
+     * Supplier, NAO um Optional fixo - o hook e resolvido de verdade so na PRIMEIRA
+     * chamada apos o servidor terminar de habilitar todos os plugins (ver
+     * AlkaMines#onEnable), nao durante o onEnable desta classe. softdepend no
+     * plugin.yml nao garante ordem estrita de enable com muitos plugins/dependencias
+     * cruzadas no servidor - resolver o hook cedo demais (direto no onEnable) pode
+     * rodar ANTES do AlkaDrop registrar a propria API no ServicesManager, mesmo com
+     * os dois plugins presentes e saudaveis, deixando o hook permanentemente vazio
+     * pro resto da sessao. Bug real encontrado 2026-08-09 (AlkaMines habilitava
+     * antes do AlkaDrop no log do servidor, apesar do softdepend).
+     */
+    private final Supplier<Optional<AlkaDropHook>> dropHookSupplier;
 
     public MineBreakListener(MineManager mineManager, PlayerDataManager playerDataManager,
                               PickaxeLevelManager levelManager, Optional<AlkaShopHook> shopHook,
                               Optional<McMMOHook> mcmmoHook, Optional<AdvancedEnchantmentsHook> aeHook,
-                              Optional<AlkaDropHook> dropHook) {
+                              Supplier<Optional<AlkaDropHook>> dropHookSupplier) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
         this.levelManager = levelManager;
         this.shopHook = shopHook;
         this.mcmmoHook = mcmmoHook;
         this.aeHook = aeHook;
-        this.dropHook = dropHook;
+        this.dropHookSupplier = dropHookSupplier;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -100,6 +112,9 @@ public class MineBreakListener implements Listener {
         if (mine == null) {
             return;
         }
+
+        // Resolvido por chamada, nao no construtor - ver javadoc de dropHookSupplier.
+        Optional<AlkaDropHook> dropHook = dropHookSupplier.get();
 
         // AdvancedEnchantments processa BlockBreakEvent em HIGH - precisa rodar ANTES
         // de cancelarmos o evento em HIGHEST, senao os efeitos/encantamentos dele nunca disparam.
@@ -146,7 +161,7 @@ public class MineBreakListener implements Listener {
 
         StringBuilder actionBar = new StringBuilder();
 
-        giveOrSellDrops(player, drops, actionBar, location);
+        giveOrSellDrops(player, drops, actionBar, location, dropHook);
 
         // Auto-condensar do AlkaDrop roda DEPOIS, sobre o inventario inteiro do
         // jogador (nao so o que acabou de ser minerado) - ver CondenseManager#
@@ -202,7 +217,8 @@ public class MineBreakListener implements Listener {
         ChatUtil.send(player, "");
     }
 
-    private void giveOrSellDrops(Player player, Collection<ItemStack> drops, StringBuilder actionBar, Location dropLocation) {
+    private void giveOrSellDrops(Player player, Collection<ItemStack> drops, StringBuilder actionBar, Location dropLocation,
+                                  Optional<AlkaDropHook> dropHook) {
         boolean autoSell = shopHook.isPresent() && shopHook.get().isAutoSellActive(player);
         Map<String, Double> soldTotals = new LinkedHashMap<>();
         List<ItemStack> toDeliver = new ArrayList<>();

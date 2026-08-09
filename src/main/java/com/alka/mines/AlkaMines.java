@@ -27,7 +27,11 @@ import com.alka.mines.manager.PickaxeLevelManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.service.MineResetService;
 import com.alka.mines.task.MineResetTask;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class AlkaMines extends JavaPlugin {
 
@@ -74,9 +78,20 @@ public final class AlkaMines extends JavaPlugin {
         var shopHook = AlkaShopHook.tryHook(this);
         var mcmmoHook = McMMOHook.tryHook(this);
         var aeHook = AdvancedEnchantmentsHook.tryHook(this);
-        var dropHook = AlkaDropHook.tryHook(this);
+
+        // NAO resolve o AlkaDropHook aqui de forma sincrona - softdepend no
+        // plugin.yml nao garante ordem estrita de enable com muitos plugins no
+        // servidor (bug real 2026-08-09: AlkaMines habilitava ANTES do AlkaDrop
+        // apesar do softdepend, entao a API dele no ServicesManager ainda nao
+        // existia nesse ponto - o hook ficava permanentemente vazio pro resto da
+        // sessao mesmo com os dois plugins presentes e saudaveis). Resolve 1 tick
+        // depois em vez disso, quando TODOS os plugins ja terminaram o proprio
+        // onEnable (o servidor so comeca a rodar tarefas agendadas depois disso).
+        AtomicReference<Optional<AlkaDropHook>> dropHookRef = new AtomicReference<>(Optional.empty());
+        Bukkit.getScheduler().runTask(this, () -> dropHookRef.set(AlkaDropHook.tryHook(this)));
+
         getServer().getPluginManager().registerEvents(
-                new MineBreakListener(mineManager, playerDataManager, levelManager, shopHook, mcmmoHook, aeHook, dropHook), this);
+                new MineBreakListener(mineManager, playerDataManager, levelManager, shopHook, mcmmoHook, aeHook, dropHookRef::get), this);
 
         AdminCommands adminCommands = new AdminCommands(mineManager, worldEditHook, adminMainMenu, resetService,
                 playerDataManager, hologramManager);
