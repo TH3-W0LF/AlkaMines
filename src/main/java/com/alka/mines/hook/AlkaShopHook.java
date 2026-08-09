@@ -59,7 +59,7 @@ public final class AlkaShopHook {
 
             plugin.getLogger().info("Hook do AlkaShop habilitado (auto-venda ao minerar).");
             return Optional.of(new AlkaShopHook(registration.getProvider(), isAutoSellActiveMethod, isSellableMethod, sellItemMethod));
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             plugin.getLogger().log(Level.WARNING, "AlkaShop encontrado mas a API nao carregou via reflexao.", e);
             return Optional.empty();
         }
@@ -68,7 +68,7 @@ public final class AlkaShopHook {
     public boolean isAutoSellActive(Player player) {
         try {
             return (boolean) isAutoSellActiveMethod.invoke(api, player);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             return false;
         }
     }
@@ -76,7 +76,7 @@ public final class AlkaShopHook {
     public boolean isSellable(Material material) {
         try {
             return (boolean) isSellableMethod.invoke(api, material);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             return false;
         }
     }
@@ -85,7 +85,7 @@ public final class AlkaShopHook {
     public Map<String, Double> sell(Player player, ItemStack item) {
         try {
             return (Map<String, Double>) sellItemMethod.invoke(api, player, item);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             return Map.of();
         }
     }

@@ -55,7 +55,7 @@ public final class AdvancedEnchantmentsHook {
             plugin.getLogger().info("Hook AdvancedEnchantments ativado (via reflexao).");
             return Optional.of(new AdvancedEnchantmentsHook(apiInstance, applyEnchantMethod, hasEnchantmentsMethod,
                     applyBreakEffectsMethod));
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             plugin.getLogger().log(Level.WARNING, "AdvancedEnchantments encontrado mas API nao carregou via reflexao.", e);
             return Optional.empty();
         }
@@ -68,7 +68,7 @@ public final class AdvancedEnchantmentsHook {
         }
         try {
             applyBreakEffectsMethod.invoke(null, player, block);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             // efeito colateral raro, nao deve impedir a quebra do bloco na mina.
         }
     }
@@ -79,7 +79,7 @@ public final class AdvancedEnchantmentsHook {
         }
         try {
             return (boolean) hasEnchantmentsMethod.invoke(apiInstance, item);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             return false;
         }
     }
@@ -90,7 +90,7 @@ public final class AdvancedEnchantmentsHook {
         }
         try {
             return (ItemStack) applyEnchantMethod.invoke(apiInstance, enchant, level, item);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             return item;
         }
     }

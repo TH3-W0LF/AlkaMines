@@ -59,7 +59,7 @@ public final class AlkaEconomyHook {
 
             plugin.getLogger().info("Hook do AlkaEconomy habilitado (COINS + ESCARION).");
             return Optional.of(new AlkaEconomyHook(economyManager, addBalanceMethod, getBalanceMethod, formatValueMethod));
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             plugin.getLogger().log(Level.WARNING, "AlkaEconomy encontrado mas a API nao carregou via reflexao.", e);
             return Optional.empty();
         }
@@ -68,7 +68,7 @@ public final class AlkaEconomyHook {
     public void deposit(UUID uuid, String currency, double amount) {
         try {
             addBalanceMethod.invoke(economyManager, uuid, currency, amount);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             Bukkit.getLogger().log(Level.WARNING, "Erro ao depositar via AlkaEconomy.", e);
         }
     }
@@ -76,7 +76,7 @@ public final class AlkaEconomyHook {
     public double getBalance(UUID uuid, String currency) {
         try {
             return (double) getBalanceMethod.invoke(economyManager, uuid, currency);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             return 0.0;
         }
     }
@@ -84,7 +84,7 @@ public final class AlkaEconomyHook {
     public String format(double amount) {
         try {
             return (String) formatValueMethod.invoke(null, amount);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) {
             return String.valueOf(amount);
         }
     }
