@@ -140,7 +140,7 @@ public class MineBreakListener implements Listener {
 
         StringBuilder actionBar = new StringBuilder();
 
-        giveOrSellDrops(player, drops, actionBar);
+        giveOrSellDrops(player, drops, actionBar, location);
 
         // Auto-condensar do AlkaDrop roda DEPOIS, sobre o inventario inteiro do
         // jogador (nao so o que acabou de ser minerado) - ver CondenseManager#
@@ -196,9 +196,10 @@ public class MineBreakListener implements Listener {
         ChatUtil.send(player, "");
     }
 
-    private void giveOrSellDrops(Player player, Collection<ItemStack> drops, StringBuilder actionBar) {
+    private void giveOrSellDrops(Player player, Collection<ItemStack> drops, StringBuilder actionBar, Location dropLocation) {
         boolean autoSell = shopHook.isPresent() && shopHook.get().isAutoSellActive(player);
         Map<String, Double> soldTotals = new LinkedHashMap<>();
+        List<ItemStack> toDeliver = new ArrayList<>();
 
         for (ItemStack drop : drops) {
             if (autoSell && shopHook.get().isSellable(drop.getType())) {
@@ -210,13 +211,25 @@ public class MineBreakListener implements Listener {
                     continue;
                 }
             }
+            toDeliver.add(drop);
+        }
 
-            Map<Integer, ItemStack> leftover = player.getInventory().addItem(drop);
-            if (!leftover.isEmpty()) {
-                for (ItemStack item : leftover.values()) {
-                    player.getWorld().dropItemNaturally(player.getLocation(), item);
+        // Entrega o que nao foi vendido - via AlkaDrop se presente (respeita o
+        // toggle de coleta do jogador: inventario ou chao), senao direto pro
+        // inventario como sempre foi (fallback sem AlkaDrop instalado).
+        if (!toDeliver.isEmpty()) {
+            if (dropHook.isPresent()) {
+                dropHook.get().deliverDrops(player, toDeliver, dropLocation);
+            } else {
+                for (ItemStack drop : toDeliver) {
+                    Map<Integer, ItemStack> leftover = player.getInventory().addItem(drop);
+                    if (!leftover.isEmpty()) {
+                        for (ItemStack item : leftover.values()) {
+                            player.getWorld().dropItemNaturally(dropLocation, item);
+                        }
+                        ChatUtil.send(player, "<red><bold>INVENTARIO CHEIO!</bold> <gray>Itens dropados no chao.");
+                    }
                 }
-                ChatUtil.send(player, "<red><bold>INVENTARIO CHEIO!</bold> <gray>Itens dropados no chao.");
             }
         }
 
