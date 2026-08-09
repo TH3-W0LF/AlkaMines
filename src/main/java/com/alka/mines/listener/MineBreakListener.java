@@ -1,6 +1,7 @@
 package com.alka.mines.listener;
 
 import com.alka.mines.hook.AdvancedEnchantmentsHook;
+import com.alka.mines.hook.AlkaDropHook;
 import com.alka.mines.hook.AlkaShopHook;
 import com.alka.mines.hook.McMMOHook;
 import com.alka.mines.manager.MineManager;
@@ -14,6 +15,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -21,8 +23,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -63,16 +67,19 @@ public class MineBreakListener implements Listener {
     private final Optional<AlkaShopHook> shopHook;
     private final Optional<McMMOHook> mcmmoHook;
     private final Optional<AdvancedEnchantmentsHook> aeHook;
+    private final Optional<AlkaDropHook> dropHook;
 
     public MineBreakListener(MineManager mineManager, PlayerDataManager playerDataManager,
                               PickaxeLevelManager levelManager, Optional<AlkaShopHook> shopHook,
-                              Optional<McMMOHook> mcmmoHook, Optional<AdvancedEnchantmentsHook> aeHook) {
+                              Optional<McMMOHook> mcmmoHook, Optional<AdvancedEnchantmentsHook> aeHook,
+                              Optional<AlkaDropHook> dropHook) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
         this.levelManager = levelManager;
         this.shopHook = shopHook;
         this.mcmmoHook = mcmmoHook;
         this.aeHook = aeHook;
+        this.dropHook = dropHook;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -98,7 +105,11 @@ public class MineBreakListener implements Listener {
         MineBlock compositionBlock = resolveCompositionBlock(mine, block);
 
         // drops calculados com o bloco ainda no tipo original, ANTES de cancelar/remover.
-        Collection<ItemStack> drops = block.getDrops(player.getInventory().getItemInMainHand());
+        // Lista mutavel (nao a Collection crua de getDrops) porque o hook do AlkaDrop
+        // precisa poder substituir itens no lugar (ex: RAW_IRON -> IRON_INGOT).
+        ItemStack tool = player.getInventory().getItemInMainHand();
+        List<ItemStack> drops = new ArrayList<>(block.getDrops(tool));
+        boolean silkTouch = tool.containsEnchantment(Enchantment.SILK_TOUCH);
 
         event.setCancelled(true);
         event.setDropItems(false);
@@ -122,9 +133,20 @@ public class MineBreakListener implements Listener {
 
         trackProgress(player, mine);
 
+        // Auto-smelt do AlkaDrop (se o jogador tiver ativo) processa o drop ANTES de
+        // dar/vender - assim a auto-venda do AlkaShop logo abaixo ja vende pelo preco
+        // do ingot, nao do minerio bruto.
+        dropHook.ifPresent(hook -> hook.trySmelt(player, drops, silkTouch));
+
         StringBuilder actionBar = new StringBuilder();
 
         giveOrSellDrops(player, drops, actionBar);
+
+        // Auto-condensar do AlkaDrop roda DEPOIS, sobre o inventario inteiro do
+        // jogador (nao so o que acabou de ser minerado) - ver CondenseManager#
+        // condenseInventory no AlkaDrop pro motivo (acumula corretamente entre
+        // blocos diferentes minerados um de cada vez).
+        dropHook.ifPresent(hook -> hook.tryCondenseInventory(player));
 
         if (!actionBar.isEmpty()) {
             player.sendActionBar(ChatUtil.parse(actionBar.toString()));

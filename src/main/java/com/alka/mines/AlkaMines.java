@@ -11,6 +11,7 @@ import com.alka.mines.gui.MineResetChatListener;
 import com.alka.mines.gui.MineResetMenu;
 import com.alka.mines.hologram.HologramManager;
 import com.alka.mines.hook.AdvancedEnchantmentsHook;
+import com.alka.mines.hook.AlkaDropHook;
 import com.alka.mines.hook.AlkaShopHook;
 import com.alka.mines.hook.BossesProHook;
 import com.alka.mines.hook.ItemsAdderHook;
@@ -73,8 +74,9 @@ public final class AlkaMines extends JavaPlugin {
         var shopHook = AlkaShopHook.tryHook(this);
         var mcmmoHook = McMMOHook.tryHook(this);
         var aeHook = AdvancedEnchantmentsHook.tryHook(this);
+        var dropHook = AlkaDropHook.tryHook(this);
         getServer().getPluginManager().registerEvents(
-                new MineBreakListener(mineManager, playerDataManager, levelManager, shopHook, mcmmoHook, aeHook), this);
+                new MineBreakListener(mineManager, playerDataManager, levelManager, shopHook, mcmmoHook, aeHook, dropHook), this);
 
         AdminCommands adminCommands = new AdminCommands(mineManager, worldEditHook, adminMainMenu, resetService,
                 playerDataManager, hologramManager);
