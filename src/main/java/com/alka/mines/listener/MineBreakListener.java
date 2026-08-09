@@ -44,6 +44,12 @@ import java.util.Optional;
  * ativa pro jogador, o drop e entregue ao AlkaShopHook (que so pergunta "vendavel?" e
  * deposita) em vez de ir pro inventario - a mina nunca sabe o preco, so intermedeia.
  *
+ * A mina tambem NUNCA insere item direto no inventario por conta propria - o que nao
+ * foi vendido e sempre entregue via {@link AlkaDropHook#deliverDrops} (respeita o
+ * toggle de coleta do jogador: inventario ou chao) quando o AlkaDrop esta presente,
+ * ou solto no chao (vanilla, `dropItemNaturally`) quando nao esta - "auto-coletar
+ * sem precisar andar em cima do item" e uma feature do AlkaDrop, nao da mina.
+ *
  * HIGHEST + ignoreCancelled=true: plugins de protecao (WorldGuard etc.) em
  * prioridades mais baixas ja tiveram chance de cancelar - se cancelaram, nosso
  * handler nem roda (ignoreCancelled=true) e o bloco desta mina nao e tocado. Se
@@ -215,20 +221,15 @@ public class MineBreakListener implements Listener {
         }
 
         // Entrega o que nao foi vendido - via AlkaDrop se presente (respeita o
-        // toggle de coleta do jogador: inventario ou chao), senao direto pro
-        // inventario como sempre foi (fallback sem AlkaDrop instalado).
+        // toggle de coleta do jogador: inventario ou chao). Sem AlkaDrop, a mina
+        // NAO insere direto no inventario - solta no chao como o vanilla faz ao
+        // minerar, o jogador pega andando em cima (pickup padrao do Bukkit).
         if (!toDeliver.isEmpty()) {
             if (dropHook.isPresent()) {
                 dropHook.get().deliverDrops(player, toDeliver, dropLocation);
             } else {
                 for (ItemStack drop : toDeliver) {
-                    Map<Integer, ItemStack> leftover = player.getInventory().addItem(drop);
-                    if (!leftover.isEmpty()) {
-                        for (ItemStack item : leftover.values()) {
-                            player.getWorld().dropItemNaturally(dropLocation, item);
-                        }
-                        ChatUtil.send(player, "<red><bold>INVENTARIO CHEIO!</bold> <gray>Itens dropados no chao.");
-                    }
+                    player.getWorld().dropItemNaturally(dropLocation, drop);
                 }
             }
         }
