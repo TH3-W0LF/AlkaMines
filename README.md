@@ -29,6 +29,8 @@ AlkaCore (banco/GUI compartilhados).
   propósito.
 - **Bloqueio de comandos dentro da mina** (`mine-protection.blocked-commands`,
   com permissão de bypass pra staff).
+- **Ranking de blocos minerados** (`/mina ranking`, alias `top`) — top 10
+  jogadores por total de blocos quebrados (todas as minas).
 - **Integração com AlkaShop** (auto-venda: se o jogador tiver ativo, o drop é
   vendido em vez de ir pro inventário — a mina nunca sabe preço, só pergunta
   "vendável?").
