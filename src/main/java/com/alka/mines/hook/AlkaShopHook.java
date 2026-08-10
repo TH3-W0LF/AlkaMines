@@ -31,12 +31,15 @@ public final class AlkaShopHook {
 
     private final Object api;
     private final Method isAutoSellActiveMethod;
+    private final Method isAutoSellActiveMaterialMethod;
     private final Method isSellableMethod;
     private final Method sellItemMethod;
 
-    private AlkaShopHook(Object api, Method isAutoSellActiveMethod, Method isSellableMethod, Method sellItemMethod) {
+    private AlkaShopHook(Object api, Method isAutoSellActiveMethod, Method isAutoSellActiveMaterialMethod,
+                          Method isSellableMethod, Method sellItemMethod) {
         this.api = api;
         this.isAutoSellActiveMethod = isAutoSellActiveMethod;
+        this.isAutoSellActiveMaterialMethod = isAutoSellActiveMaterialMethod;
         this.isSellableMethod = isSellableMethod;
         this.sellItemMethod = sellItemMethod;
     }
@@ -57,16 +60,33 @@ public final class AlkaShopHook {
             Method isSellableMethod = apiClass.getMethod("isSellable", Material.class);
             Method sellItemMethod = apiClass.getMethod("sellItem", Player.class, ItemStack.class);
 
+            // isAutoSellActive(Player, Material) e mais novo que o resto da API (auto-venda
+            // por categoria/material, nao so um toggle global) - versao antiga do AlkaShop
+            // instalada pode nao ter, cai pro isAutoSellActive(Player) generico nesse caso.
+            Method isAutoSellActiveMaterialMethod;
+            try {
+                isAutoSellActiveMaterialMethod = apiClass.getMethod("isAutoSellActive", Player.class, Material.class);
+            } catch (NoSuchMethodException e) {
+                isAutoSellActiveMaterialMethod = null;
+                plugin.getLogger().info("AlkaShop instalado nao tem auto-venda por material (versao antiga) - "
+                        + "usando o toggle generico ao minerar.");
+            }
+
             plugin.getLogger().info("Hook do AlkaShop habilitado (auto-venda ao minerar).");
-            return Optional.of(new AlkaShopHook(registration.getProvider(), isAutoSellActiveMethod, isSellableMethod, sellItemMethod));
+            return Optional.of(new AlkaShopHook(registration.getProvider(), isAutoSellActiveMethod,
+                    isAutoSellActiveMaterialMethod, isSellableMethod, sellItemMethod));
         } catch (Throwable e) {
             plugin.getLogger().log(Level.WARNING, "AlkaShop encontrado mas a API nao carregou via reflexao.", e);
             return Optional.empty();
         }
     }
 
-    public boolean isAutoSellActive(Player player) {
+    /** Preferencia de auto-venda do jogador pra este material especifico - respeita categoria/material se o AlkaShop suportar, senao cai no toggle generico. */
+    public boolean isAutoSellActive(Player player, Material material) {
         try {
+            if (isAutoSellActiveMaterialMethod != null) {
+                return (boolean) isAutoSellActiveMaterialMethod.invoke(api, player, material);
+            }
             return (boolean) isAutoSellActiveMethod.invoke(api, player);
         } catch (Throwable e) {
             return false;

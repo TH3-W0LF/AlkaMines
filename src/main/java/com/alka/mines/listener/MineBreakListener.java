@@ -219,11 +219,11 @@ public class MineBreakListener implements Listener {
 
     private void giveOrSellDrops(Player player, Collection<ItemStack> drops, StringBuilder actionBar, Location dropLocation,
                                   Optional<AlkaDropHook> dropHook) {
-        boolean autoSell = shopHook.isPresent() && shopHook.get().isAutoSellActive(player);
         Map<String, Double> soldTotals = new LinkedHashMap<>();
         List<ItemStack> toDeliver = new ArrayList<>();
 
         for (ItemStack drop : drops) {
+            boolean autoSell = shopHook.isPresent() && shopHook.get().isAutoSellActive(player, drop.getType());
             if (autoSell && shopHook.get().isSellable(drop.getType())) {
                 Map<String, Double> totals = shopHook.get().sell(player, drop);
                 for (Map.Entry<String, Double> entry : totals.entrySet()) {
