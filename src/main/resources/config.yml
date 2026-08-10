@@ -1,7 +1,7 @@
 # Configuracao do AlkaMines.
 
 # Comandos bloqueados dentro da area de uma mina (o lobbyRegion definido via
-# /minaadmin setlobby, ou a propria regiao de mineracao se nenhum lobby foi
+# /alkamines setlobby, ou a propria regiao de mineracao se nenhum lobby foi
 # configurado) para jogadores sem a permissao alkaminas.admin.bypass.commands.
 # Cada entrada e o nome do comando SEM a barra e SEM argumentos (ex: "tp" bloqueia
 # tanto "/tp" quanto "/tp Steve", mas nao um comando de outro plugin chamado "/tpstats").
@@ -30,7 +30,7 @@ mine-protection:
 # Niveis de picareta baseados em blocos minerados (lifetime, players.yml). Formato:
 # nivel: blocos_necessarios. O jogador sobe de nivel automaticamente ao minerar o
 # suficiente (ver MineBreakListener). Use min-pickaxe-level (por mina, no menu
-# /minaadmin -> Configurar Reset) pra criar minas exclusivas por nivel.
+# /alkamines -> Configurar Reset) pra criar minas exclusivas por nivel.
 pickaxe-levels:
   0: 0          # nivel inicial - todo jogador comeca aqui
   1: 1000

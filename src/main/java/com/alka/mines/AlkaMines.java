@@ -95,8 +95,8 @@ public final class AlkaMines extends JavaPlugin {
 
         AdminCommands adminCommands = new AdminCommands(mineManager, worldEditHook, adminMainMenu, resetService,
                 playerDataManager, hologramManager);
-        getCommand("minaadmin").setExecutor(adminCommands);
-        getCommand("minaadmin").setTabCompleter(adminCommands);
+        getCommand("alkamines").setExecutor(adminCommands);
+        getCommand("alkamines").setTabCompleter(adminCommands);
 
         PlayerCommands playerCommands = new PlayerCommands(mineManager, playerDataManager);
         getCommand("mina").setExecutor(playerCommands);

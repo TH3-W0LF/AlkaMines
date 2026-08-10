@@ -8,9 +8,9 @@ depend: [AlkaCore, FastAsyncWorldEdit]
 softdepend: [PlaceholderAPI, DecentHolograms, AlkaEconomy, AlkaShop, AlkaDrop, AdvancedEnchantments, mcMMO, ItemsAdder, BossesPro]
 
 commands:
-  minaadmin:
+  alkamines:
     description: Gerencia as minas do servidor.
-    aliases: [minadmin, ma]
+    aliases: [minaadmin, minadmin, ma]
     usage: /<command> <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear>
   mina:
     description: Abre o menu de minas, teleporta ou sai de uma mina.

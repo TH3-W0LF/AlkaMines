@@ -63,7 +63,7 @@ public class HologramManager {
         templateLines = lines.isEmpty() ? defaultTemplate() : lines;
     }
 
-    /** Recarrega o template do disco - chamado se /minaadmin reload existir la fora no futuro. */
+    /** Recarrega o template do disco - chamado se /alkamines reload existir la fora no futuro. */
     public void reloadTemplate() {
         loadTemplate();
     }
@@ -149,7 +149,7 @@ public class HologramManager {
         double percentage = volume > 0
                 ? Math.round((mine.getBlocksRemaining() / (double) volume) * 1000.0) / 10.0
                 : 0.0;
-        // MiniMessage (displayName e editavel via /minaadmin renomear com tags tipo
+        // MiniMessage (displayName e editavel via /alkamines renomear com tags tipo
         // <rainbow>) -> legacy, ja que o DHAPI so entende &/paragraph, nunca <tag>.
         String legacyName = ChatUtil.toLegacy(mine.getDisplayName());
 

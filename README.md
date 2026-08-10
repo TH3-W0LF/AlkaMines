@@ -8,7 +8,7 @@ AlkaCore (banco/GUI compartilhados).
 ## O que faz
 
 - **Criação de mina via seleção do WorldEdit** (`//pos1`, `//pos2`, `//wand`) —
-  `/minaadmin criar` usa a seleção atual, sem sistema de posição próprio.
+  `/alkamines criar` usa a seleção atual, sem sistema de posição próprio.
 - **Reset em massa via FastAsyncWorldEdit** (`EditSession` + `RandomPattern`,
   assíncrono) — nunca trava a main thread, mas por isso o FAWE é **hard
   dependency**, sem fallback puro-Bukkit.
@@ -66,7 +66,7 @@ terminaram de habilitar, independente da ordem entre os dois.
 ## Débitos conhecidos
 
 - `BossesProHook` é só detecção de presença — nenhuma integração real ainda.
-- Comandos `/minaadmin setresetpercentage`/`setresetinterval` mencionados em
+- Comandos `/alkamines setresetpercentage`/`setresetinterval` mencionados em
   versões antigas não existem — configuração de reset é só via GUI.
 - Perdeu, na reescrita de 2026-07-29, a integração com AlkaRankUp (gate de
   rank) e AlkaEconomy (recompensa direta por bloco) que a versão anterior

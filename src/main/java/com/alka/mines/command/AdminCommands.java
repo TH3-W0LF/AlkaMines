@@ -24,7 +24,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * /minaadmin - CommandExecutor classico (fallback documentado no prompt em vez de
+ * /alkamines - CommandExecutor classico (fallback documentado no prompt em vez de
  * Brigadier: mesmo padrao ja usado por todo comando administrativo neste workspace,
  * sem o overhead/risco de versao do registro via LifecycleEvents.COMMANDS do Paper).
  */
@@ -55,7 +55,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 0) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear>");
             return true;
         }
 
@@ -109,7 +109,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin criar <id>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines criar <id>");
             return;
         }
 
@@ -138,7 +138,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin deletar <id>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines deletar <id>");
             return;
         }
 
@@ -160,7 +160,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin editar <id>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines editar <id>");
             return;
         }
 
@@ -172,7 +172,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin resetar <id>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines resetar <id>");
             return;
         }
 
@@ -196,7 +196,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin setspawn <id>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines setspawn <id>");
             return;
         }
 
@@ -221,7 +221,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin setlobby <id>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines setlobby <id>");
             return;
         }
 
@@ -249,7 +249,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin removelobby <id>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines removelobby <id>");
             return;
         }
 
@@ -319,7 +319,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 3) {
-            ChatUtil.send(sender, "<red>Uso: /minaadmin renomear <id> <nome...>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines renomear <id> <nome...>");
             return;
         }
 

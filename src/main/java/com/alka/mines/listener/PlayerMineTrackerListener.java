@@ -22,7 +22,7 @@ import java.util.Optional;
  * o jogador muda de bloco (nao a cada micro-movimento da camera/subpixel).
  *
  * Fonte e sempre Mine#containsLobby (MineManager#getMineLobbyAt) - respeita o
- * lobbyRegion opcional definido via /minaadmin setlobby (ou a propria regiao de
+ * lobbyRegion opcional definido via /alkamines setlobby (ou a propria regiao de
  * mineracao como fallback), e ambos ignoram Y (MineRegion#containsIgnoreY): uma
  * plataforma de entrada em outra altura, mesma coluna X/Z, ja conta como "na mina" sem
  * precisar de nenhuma heuristica de distancia.

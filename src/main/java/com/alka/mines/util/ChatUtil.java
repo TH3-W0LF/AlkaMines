@@ -22,7 +22,7 @@ public final class ChatUtil {
     }
 
     /** Converte MiniMessage (<red>, <rainbow>, etc) para codigos & - usado quando o texto
-     * (ex: Mine#getDisplayName(), editavel via /minaadmin renomear) vai parar em algo que
+     * (ex: Mine#getDisplayName(), editavel via /alkamines renomear) vai parar em algo que
      * so entende legacy: holograma (DHAPI) ou placeholder consumido por scoreboard/TAB. */
     public static String toLegacy(String text) {
         if (text == null) {

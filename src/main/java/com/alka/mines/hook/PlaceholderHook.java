@@ -64,7 +64,7 @@ public class PlaceholderHook extends PlaceholderExpansion {
             case "mina" -> {
                 String currentId = data.getCurrentMineId();
                 Mine mine = currentId == null ? null : mineManager.getMine(currentId).orElse(null);
-                // displayName e MiniMessage (editavel via /minaadmin renomear) - scoreboard/TAB
+                // displayName e MiniMessage (editavel via /alkamines renomear) - scoreboard/TAB
                 // normalmente so entendem codigos & legados, entao converte antes de expor.
                 yield mine == null ? "Nenhuma" : ChatUtil.toLegacy(mine.getDisplayName());
             }

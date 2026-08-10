@@ -146,7 +146,7 @@ public class Mine {
     }
 
     /** Area da mina como um todo (lobby/dungeon) - cai pra regiao de mineracao se
-     * nenhum lobbyRegion foi configurado via /minaadmin setlobby. Ignora Y nos dois
+     * nenhum lobbyRegion foi configurado via /alkamines setlobby. Ignora Y nos dois
      * casos: a plataforma de entrada raramente fica exatamente dentro do intervalo de
      * Y da selecao original, entao qualquer altura na coluna X/Z conta como "na mina"
      * pra tracking/placeholder/bloqueio de comando (NUNCA pra mineracao - isso e

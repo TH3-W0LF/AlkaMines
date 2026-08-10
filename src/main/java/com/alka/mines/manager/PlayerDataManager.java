@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 /**
  * Estado por jogador (mina atual, blocos quebrados, nivel de picareta, bonus de coins)
- * + a localizacao global de "saida" configurada por um admin via /minaadmin setsaida.
+ * + a localizacao global de "saida" configurada por um admin via /alkamines setsaida.
  * Persistido em players.yml - carregado uma vez no onEnable, salvo no onDisable E
  * periodicamente (ver AlkaMines#onEnable, runTaskTimer) pra sobreviver a um crash sem
  * onDisable "limpo", ja que blocksBroken/pickaxeLevel sao progresso valioso do
