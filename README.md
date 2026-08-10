@@ -31,9 +31,11 @@ AlkaCore (banco/GUI compartilhados).
   com permissão de bypass pra staff).
 - **Ranking de blocos minerados** (`/mina ranking`, alias `top`) — top 10
   jogadores por total de blocos quebrados (todas as minas).
-- **Integração com AlkaShop** (auto-venda: se o jogador tiver ativo, o drop é
-  vendido em vez de ir pro inventário — a mina nunca sabe preço, só pergunta
-  "vendável?").
+- **Integração com AlkaShop** (auto-venda: se o jogador tiver ativo pra aquele
+  material/categoria específico, o drop é vendido em vez de ir pro inventário
+  — a mina nunca sabe preço, só pergunta "devo vender isso pra este jogador?"
+  por material, respeitando a escolha granular do AlkaShop, não só um toggle
+  global).
 - **Integração com AlkaDrop** (auto-smelt, auto-condensar e a preferência de
   coleta do jogador — inventário ou chão — também valem minerando dentro da
   mina, via `AlkaDropAPI`/`ServicesManager`). Sem AlkaDrop, o drop cai no chão
