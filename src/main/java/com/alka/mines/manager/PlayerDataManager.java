@@ -6,10 +6,13 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 /**
  * Estado por jogador (mina atual, blocos quebrados, nivel de picareta, bonus de coins)
@@ -38,6 +41,14 @@ public class PlayerDataManager {
 
     public void remove(UUID uuid) {
         data.remove(uuid);
+    }
+
+    /** Top jogadores por blocos quebrados (total, todas as minas), ordem decrescente. */
+    public List<Map.Entry<UUID, PlayerMineData>> getTopBlocksBroken(int limit) {
+        return data.entrySet().stream()
+                .sorted(Comparator.comparingLong((Map.Entry<UUID, PlayerMineData> e) -> e.getValue().getBlocksBroken()).reversed())
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 
     public Location getExitLocation() {

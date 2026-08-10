@@ -15,7 +15,7 @@ commands:
   mina:
     description: Abre o menu de minas, teleporta ou sai de uma mina.
     aliases: [minas]
-    usage: /<command> [ir <id>|sair|lista]
+    usage: /<command> [ir <id>|sair|lista|ranking]
 
 permissions:
   alkaminas.admin.criar:

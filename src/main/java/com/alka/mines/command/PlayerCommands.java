@@ -16,10 +16,14 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.alka.mines.manager.PlayerMineData;
+
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class PlayerCommands implements CommandExecutor, TabCompleter {
@@ -58,9 +62,26 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
             case "ir" -> handleIr(player, args);
             case "sair" -> handleSair(player);
             case "lista" -> listMenu.open(player);
-            default -> ChatUtil.send(player, "<red>Uso: /mina [ir <id>|sair|lista]");
+            case "ranking", "top" -> sendRanking(player);
+            default -> ChatUtil.send(player, "<red>Uso: /mina [ir <id>|sair|lista|ranking]");
         }
         return true;
+    }
+
+    private void sendRanking(Player player) {
+        List<Map.Entry<UUID, PlayerMineData>> top = playerDataManager.getTopBlocksBroken(10);
+        if (top.isEmpty()) {
+            ChatUtil.send(player, "<yellow>Ainda nao ha dados suficientes para o ranking.");
+            return;
+        }
+        ChatUtil.send(player, "<aqua><b>Top 10 - Blocos Minerados:</b>");
+        int position = 1;
+        for (Map.Entry<UUID, PlayerMineData> entry : top) {
+            String name = Bukkit.getOfflinePlayer(entry.getKey()).getName();
+            ChatUtil.send(player, "<gray>" + position + ". <white>" + (name != null ? name : "Desconhecido")
+                    + " <gray>- <yellow>" + entry.getValue().getBlocksBroken());
+            position++;
+        }
     }
 
     private void handleDefault(Player player) {
@@ -146,7 +167,7 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("ir", "sair", "lista").stream()
+            return List.of("ir", "sair", "lista", "ranking").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
