@@ -68,6 +68,6 @@ public class PlayerMineTrackerListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        playerDataManager.remove(event.getPlayer().getUniqueId());
+        playerDataManager.saveAndRemove(event.getPlayer().getUniqueId());
     }
 }

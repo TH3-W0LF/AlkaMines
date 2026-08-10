@@ -1,5 +1,6 @@
 package com.alka.mines.manager;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -43,6 +44,19 @@ public class PlayerDataManager {
         data.remove(uuid);
     }
 
+    /**
+     * Persiste tudo que estiver em memoria (ver save()) e SO DEPOIS remove o jogador
+     * do cache - roda fora da main thread. Sem isso, o progresso feito entre o ultimo
+     * autosave periodico (a cada 5 min) e o quit era perdido: remove(uuid) sozinho no
+     * quit tirava o jogador da memoria sem nunca escrever esse progresso em disco.
+     */
+    public void saveAndRemove(UUID uuid) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            save();
+            data.remove(uuid);
+        });
+    }
+
     /** Top jogadores por blocos quebrados (total, todas as minas), ordem decrescente. */
     public List<Map.Entry<UUID, PlayerMineData>> getTopBlocksBroken(int limit) {
         return data.entrySet().stream()
@@ -59,8 +73,15 @@ public class PlayerDataManager {
         this.exitLocation = exitLocation;
     }
 
+    /**
+     * Carrega o arquivo em disco ANTES de escrever - senao cada save() sobrescrevia
+     * players.yml do zero so com quem estava em memoria no momento (jogadores online +
+     * ainda nao removidos pelo quit), apagando pra sempre o progresso de qualquer
+     * jogador offline que ja tinha sido salvo antes (bug real: todo mundo perdia o
+     * progresso no proximo autosave/onDisable depois de deslogar).
+     */
     public void save() {
-        YamlConfiguration config = new YamlConfiguration();
+        YamlConfiguration config = file.exists() ? YamlConfiguration.loadConfiguration(file) : new YamlConfiguration();
 
         if (exitLocation != null) {
             config.set("exit-location", exitLocation);
