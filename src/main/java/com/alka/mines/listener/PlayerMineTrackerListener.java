@@ -8,6 +8,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
@@ -64,6 +65,11 @@ public class PlayerMineTrackerListener implements Listener {
         if (!Objects.equals(data.getCurrentMineId(), newMineId)) {
             data.setCurrentMineId(newMineId);
         }
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        playerDataManager.loadForJoin(event.getPlayer().getUniqueId());
     }
 
     @EventHandler

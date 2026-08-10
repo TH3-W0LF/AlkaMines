@@ -40,6 +40,31 @@ public class PlayerDataManager {
         return data.computeIfAbsent(uuid, k -> new PlayerMineData());
     }
 
+    /**
+     * Recarrega os dados salvos de UM jogador do disco pra memoria, se ainda nao
+     * estiverem la - chamado no join. Sem isso, {@link #get(UUID)} criava um
+     * PlayerMineData vazio (computeIfAbsent) pra qualquer jogador ausente do cache,
+     * inclusive um que tinha acabado de deslogar (saveAndRemove tira do cache no
+     * quit): o progresso ficava salvo certinho em players.yml, mas o jogador via o
+     * proprio contador (blocksBroken/ranking) resetar pra 0 ao relogar, porque nada
+     * recarregava esse valor de volta pra memoria - so o load() do boot inicial.
+     */
+    public void loadForJoin(UUID uuid) {
+        if (data.containsKey(uuid) || !file.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        String path = "players." + uuid;
+        if (!config.isConfigurationSection(path)) {
+            return;
+        }
+        PlayerMineData playerData = new PlayerMineData();
+        playerData.setBlocksBroken(config.getLong(path + ".blocks-broken", 0));
+        playerData.setPickaxeLevel(config.getInt(path + ".pickaxe-level", 0));
+        playerData.setCoinBonus(config.getDouble(path + ".coin-bonus", 0.0));
+        data.put(uuid, playerData);
+    }
+
     public void remove(UUID uuid) {
         data.remove(uuid);
     }
