@@ -34,14 +34,16 @@ public final class AlkaShopHook {
     private final Method isAutoSellActiveMaterialMethod;
     private final Method isSellableMethod;
     private final Method sellItemMethod;
+    private final Method notifyAutoSellMethod;
 
     private AlkaShopHook(Object api, Method isAutoSellActiveMethod, Method isAutoSellActiveMaterialMethod,
-                          Method isSellableMethod, Method sellItemMethod) {
+                          Method isSellableMethod, Method sellItemMethod, Method notifyAutoSellMethod) {
         this.api = api;
         this.isAutoSellActiveMethod = isAutoSellActiveMethod;
         this.isAutoSellActiveMaterialMethod = isAutoSellActiveMaterialMethod;
         this.isSellableMethod = isSellableMethod;
         this.sellItemMethod = sellItemMethod;
+        this.notifyAutoSellMethod = notifyAutoSellMethod;
     }
 
     public static Optional<AlkaShopHook> tryHook(JavaPlugin plugin) {
@@ -72,9 +74,23 @@ public final class AlkaShopHook {
                         + "usando o toggle generico ao minerar.");
             }
 
+            // notifyAutoSell e mais novo ainda que isAutoSellActive(Player,Material) - versao
+            // antiga do AlkaShop instalada pode nao ter, nesse caso a mina so nao mostra
+            // feedback nenhum de auto-venda (melhor que voltar a duplicar a logica de
+            // actionbar/som aqui, que ai desligar auto-sell.actionbar no AlkaShop nao
+            // desligaria a actionbar da mina).
+            Method notifyAutoSellMethod;
+            try {
+                notifyAutoSellMethod = apiClass.getMethod("notifyAutoSell", Player.class, Map.class);
+            } catch (NoSuchMethodException e) {
+                notifyAutoSellMethod = null;
+                plugin.getLogger().info("AlkaShop instalado nao tem notifyAutoSell (versao antiga) - "
+                        + "auto-venda ao minerar nao vai mostrar feedback (actionbar/som).");
+            }
+
             plugin.getLogger().info("Hook do AlkaShop habilitado (auto-venda ao minerar).");
             return Optional.of(new AlkaShopHook(registration.getProvider(), isAutoSellActiveMethod,
-                    isAutoSellActiveMaterialMethod, isSellableMethod, sellItemMethod));
+                    isAutoSellActiveMaterialMethod, isSellableMethod, sellItemMethod, notifyAutoSellMethod));
         } catch (Throwable e) {
             plugin.getLogger().log(Level.WARNING, "AlkaShop encontrado mas a API nao carregou via reflexao.", e);
             return Optional.empty();
@@ -107,6 +123,18 @@ public final class AlkaShopHook {
             return (Map<String, Double>) sellItemMethod.invoke(api, player, item);
         } catch (Throwable e) {
             return Map.of();
+        }
+    }
+
+    /** Feedback (actionbar/som) da venda automatica, do jeito configurado no AlkaShop - nao faz nada se a versao instalada nao suportar. */
+    public void notifyAutoSell(Player player, Map<String, Double> totals) {
+        if (notifyAutoSellMethod == null) {
+            return;
+        }
+        try {
+            notifyAutoSellMethod.invoke(api, player, totals);
+        } catch (Throwable ignored) {
+            // Feedback visual/sonoro - nunca vale derrubar a mineracao por causa disso.
         }
     }
 }

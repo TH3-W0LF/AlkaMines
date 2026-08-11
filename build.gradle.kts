@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.alkacode"
-version = "1.0.42"
+version = "1.0.62"
 
 java {
     toolchain {
@@ -28,9 +28,9 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
-    // depend hard no plugin.yml (integracao AlkaShop mais profunda planejada), mas o
-    // codigo hoje nao importa nenhuma classe do AlkaCore de verdade - mantido so pra
-    // quando isso mudar.
+    // depend hard no plugin.yml - o AlkaMines usa o AlkaCore de verdade: AlkaPlugin
+    // (classe base + AlkaAPI), MessageProvider (mensagens), BaseGui (menus) e
+    // AbstractRepository/DatabaseProvider (dados de jogador em SQL).
     compileOnly("com.alkacode:AlkaCore:1.0.0")
     // AlkaEconomy e AlkaShop NAO sao dependencia de compilacao - os hooks falam com
     // eles 100% via reflexao (ver comentario nas classes: um import direto de

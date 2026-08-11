@@ -1,9 +1,13 @@
 package com.alka.mines.command;
 
 import com.alka.mines.gui.MineListMenu;
+import com.alka.mines.gui.RankingGui;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
+import com.alka.mines.manager.PrivateMineManager;
 import com.alka.mines.model.Mine;
+import com.alka.mines.model.MineTemplate;
+import com.alka.mines.model.PrivateMine;
 import com.alka.mines.util.ChatUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -13,13 +17,13 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.alka.mines.manager.PlayerMineData;
-
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,12 +34,18 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
 
     private final MineManager mineManager;
     private final PlayerDataManager playerDataManager;
+    private final PrivateMineManager privateMineManager;
+    private final JavaPlugin plugin;
     private final MineListMenu listMenu;
+    private final Map<UUID, Long> deleteConfirm = new HashMap<>();
 
-    public PlayerCommands(MineManager mineManager, PlayerDataManager playerDataManager) {
+    public PlayerCommands(JavaPlugin plugin, MineManager mineManager, PlayerDataManager playerDataManager,
+                          PrivateMineManager privateMineManager) {
+        this.plugin = plugin;
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
-        this.listMenu = new MineListMenu(mineManager, playerDataManager);
+        this.privateMineManager = privateMineManager;
+        this.listMenu = new MineListMenu(plugin, mineManager, playerDataManager);
     }
 
     @Override
@@ -63,25 +73,18 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
             case "sair" -> handleSair(player);
             case "lista" -> listMenu.open(player);
             case "ranking", "top" -> sendRanking(player);
-            default -> ChatUtil.send(player, "<red>Uso: /mina [ir <id>|sair|lista|ranking]");
+            case "particular" -> handleParticular(player, args);
+            default -> ChatUtil.send(player, "<red>Uso: /mina [ir <id>|sair|lista|ranking|particular info|particular deletar]");
         }
         return true;
     }
 
     private void sendRanking(Player player) {
-        List<Map.Entry<UUID, PlayerMineData>> top = playerDataManager.getTopBlocksBroken(10);
-        if (top.isEmpty()) {
+        if (playerDataManager.getTopBlocksBroken(1).isEmpty()) {
             ChatUtil.send(player, "<yellow>Ainda nao ha dados suficientes para o ranking.");
             return;
         }
-        ChatUtil.send(player, "<aqua><b>Top 10 - Blocos Minerados:</b>");
-        int position = 1;
-        for (Map.Entry<UUID, PlayerMineData> entry : top) {
-            String name = Bukkit.getOfflinePlayer(entry.getKey()).getName();
-            ChatUtil.send(player, "<gray>" + position + ". <white>" + (name != null ? name : "Desconhecido")
-                    + " <gray>- <yellow>" + entry.getValue().getBlocksBroken());
-            position++;
-        }
+        new RankingGui(plugin, player, playerDataManager).open();
     }
 
     private void handleDefault(Player player) {
@@ -164,6 +167,56 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
         return playerDataManager.get(player.getUniqueId()).getPickaxeLevel() >= required;
     }
 
+    /** /mina particular info|deletar - gerencia a mina particular na plot atual. */
+    private void handleParticular(Player player, String[] args) {
+        if (args.length < 2) {
+            ChatUtil.send(player, "<red>Uso: /mina particular <info|deletar>");
+            return;
+        }
+        switch (args[1].toLowerCase()) {
+            case "info" -> {
+                Optional<PrivateMine> mine = privateMineManager.getMineAt(player.getLocation());
+                if (mine.isEmpty()) {
+                    ChatUtil.send(player, "<yellow>Voce nao esta numa mina particular.");
+                    return;
+                }
+                Optional<MineTemplate> template = privateMineManager.getTemplate(mine.get().getTemplateId());
+                long remainingMs = Math.max(0, template.map(t -> t.getResetIntervalMinutes()).orElse(0) * 60_000L
+                        - (System.currentTimeMillis() - mine.get().getLastReset()));
+                ChatUtil.send(player, "<aqua><b>Mina Particular:</b>");
+                ChatUtil.send(player, "<gray>Template: <white>" + (template.isPresent() ? template.get().getDisplayName() : mine.get().getTemplateId()));
+                ChatUtil.send(player, "<gray>Local: <white>" + mine.get().getWorldName() + " "
+                        + mine.get().getMinX() + "," + mine.get().getMinZ());
+                ChatUtil.send(player, "<gray>Blocos restantes: <white>" + mine.get().getBlocksRemaining());
+                ChatUtil.send(player, "<gray>Proximo reset em: <white>" + format(remainingMs / 1000));
+            }
+            case "deletar" -> {
+                Optional<PrivateMine> mine = privateMineManager.getMineAt(player.getLocation());
+                if (mine.isEmpty() || !mine.get().getOwner().equals(player.getUniqueId())) {
+                    ChatUtil.send(player, "<red>Nao existe uma mina particular sua aqui.");
+                    return;
+                }
+                Long expiry = deleteConfirm.get(player.getUniqueId());
+                if (expiry == null || expiry < System.currentTimeMillis()) {
+                    deleteConfirm.put(player.getUniqueId(), System.currentTimeMillis() + 5000);
+                    ChatUtil.send(player, "<yellow>Digite <red>/mina particular deletar</red><yellow> de novo em ate 5s pra confirmar.");
+                    return;
+                }
+                deleteConfirm.remove(player.getUniqueId());
+                if (privateMineManager.deleteAt(player, player.getLocation())) {
+                    ChatUtil.send(player, "<green>Mina particular removida.");
+                } else {
+                    ChatUtil.send(player, "<red>Nao foi possivel remover.");
+                }
+            }
+            default -> ChatUtil.send(player, "<red>Uso: /mina particular <info|deletar>");
+        }
+    }
+
+    private String format(long seconds) {
+        return String.format("%02d:%02d", seconds / 60, seconds % 60);
+    }
+
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
@@ -173,6 +226,11 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("ir")) {
             return mineManager.getMines().stream().map(Mine::getId).collect(Collectors.toList());
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("particular")) {
+            return List.of("info", "deletar").stream()
+                    .filter(s -> s.startsWith(args[1].toLowerCase()))
+                    .collect(Collectors.toList());
         }
         return List.of();
     }

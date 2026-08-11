@@ -1,5 +1,8 @@
 package com.alka.mines.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MineSettings {
 
     private int resetIntervalMinutes;
@@ -7,6 +10,10 @@ public class MineSettings {
     private boolean invisiblePlayers;
     private int minPickaxeLevel;
     private String permission;
+    private boolean actionbarEnabled;
+    private int actionbarRange = 10;
+    private int broadcastMode;
+    private List<String> resetCommands = new ArrayList<>();
 
     public MineSettings() {
         this(0, 40.0, false, 0, "");
@@ -69,5 +76,41 @@ public class MineSettings {
 
     public boolean hasPermission() {
         return !permission.isBlank();
+    }
+
+    /** ActionBar de status (restantes/%) enviado a jogadores perto da mina. */
+    public boolean isActionbarEnabled() {
+        return actionbarEnabled;
+    }
+
+    public void setActionbarEnabled(boolean actionbarEnabled) {
+        this.actionbarEnabled = actionbarEnabled;
+    }
+
+    /** Raio em blocos (ao cuboide) em que o actionbar aparece. */
+    public int getActionbarRange() {
+        return actionbarRange;
+    }
+
+    public void setActionbarRange(int actionbarRange) {
+        this.actionbarRange = actionbarRange;
+    }
+
+    /** 0 = mundo inteiro, -1 = todos os mundos, -2 = silencioso, >=1 = raio em blocos. */
+    public int getBroadcastMode() {
+        return broadcastMode;
+    }
+
+    public void setBroadcastMode(int broadcastMode) {
+        this.broadcastMode = broadcastMode;
+    }
+
+    /** Comandos (console) rodados quando a mina resetar - %mine% = id, %display% = nome. */
+    public List<String> getResetCommands() {
+        return resetCommands;
+    }
+
+    public void setResetCommands(List<String> resetCommands) {
+        this.resetCommands = resetCommands != null ? resetCommands : new ArrayList<>();
     }
 }

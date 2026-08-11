@@ -5,33 +5,33 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 
-public class BlockCompositionMenuListener implements Listener {
+public class MineRewardsListener implements Listener {
 
-    private final BlockCompositionMenu menu;
+    private final MineRewardsMenu menu;
 
-    public BlockCompositionMenuListener(BlockCompositionMenu menu) {
+    public MineRewardsListener(MineRewardsMenu menu) {
         this.menu = menu;
     }
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof BlockCompositionMenu.Holder holder)) {
+        if (!(event.getInventory().getHolder() instanceof MineRewardsMenu.Holder)) {
             return;
         }
 
         // clique no inventario do PROPRIO jogador (bottom) - nunca cancelar aqui, senao o
-        // jogador nunca consegue nem pegar o item pro cursor pra "arrastar" pro menu depois.
+        // jogador nunca consegue pegar o item pro cursor pra "arrastar" depois.
         if (event.getClickedInventory() != event.getView().getTopInventory()) {
             return;
         }
 
         event.setCancelled(true);
-        menu.handleClick(event, holder.mineId(), holder.xpMode());
+        menu.handleClick(event);
     }
 
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
-        if (event.getInventory().getHolder() instanceof BlockCompositionMenu.Holder) {
+        if (event.getInventory().getHolder() instanceof MineRewardsMenu.Holder) {
             event.setCancelled(true);
         }
     }

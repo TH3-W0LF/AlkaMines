@@ -5,22 +5,20 @@ import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.util.ChatUtil;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Sub-menu do AdminMainMenu pra configurar tempo/porcentagem de reset - GUI + prompt
- * de chat pro valor numerico, mesmo padrao do BlockCompositionMenu (nunca comando).
- * Tambem serve de infraestrutura compartilhada pro prompt de categoria e de renomear,
- * chamados direto pelo AdminMainMenu (sem passar pela tela de reset) - mesmo mapa de
- * pendencia, mesmo listener de chat, sem duplicar codigo.
+ * Sub-menu do AdminMainMenu pra configurar tempo/porcentagem/permissao de reset - GUI
+ * (BaseGui do AlkaCore, ver {@link MineResetGui}) + prompt de chat pro valor numerico,
+ * mesmo padrao do BlockCompositionMenu (nunca comando). Tambem serve de infraestrutura
+ * compartilhada pro prompt de categoria e de renomear, chamados direto pelo
+ * AdminMainMenuGui (sem passar pela tela de reset) - mesmo mapa de pendencia, mesmo
+ * listener de chat, sem duplicar codigo.
  */
 public class MineResetMenu {
 
@@ -46,64 +44,45 @@ public class MineResetMenu {
     }
 
     public void open(Player admin, String mineId) {
-        Mine mine = mineManager.getMine(mineId).orElse(null);
-        if (mine == null) {
-            ChatUtil.send(admin, "<red>Mina nao encontrada: " + mineId);
-            return;
-        }
-
-        Inventory inv = new MenuBuilder(27, ChatUtil.parse("<dark_gray>Reset: " + mine.getDisplayName()))
-                .fillBorder(Material.BLACK_STAINED_GLASS_PANE)
-                .item(11, Material.CLOCK, ChatUtil.parse("<gold><bold>Tempo de Reset"),
-                        List.of(
-                                ChatUtil.parse("<gray>Atual: <white>" + mine.getSettings().getResetIntervalMinutes() + " min"),
-                                ChatUtil.parse(""),
-                                ChatUtil.parse("<yellow>Clique para alterar")
-                        ),
-                        event -> promptInterval(admin, mineId))
-                .item(15, Material.COMPARATOR, ChatUtil.parse("<aqua><bold>Porcentagem Restante"),
-                        List.of(
-                                ChatUtil.parse("<gray>Atual: <white>" + trim(mine.getSettings().getResetPercentage()) + "%"),
-                                ChatUtil.parse(""),
-                                ChatUtil.parse("<yellow>Clique para alterar")
-                        ),
-                        event -> promptPercentage(admin, mineId))
-                .item(13, Material.TRIPWIRE_HOOK, ChatUtil.parse("<light_purple><bold>Permissao de Entrada"),
-                        List.of(
-                                ChatUtil.parse("<gray>Atual: <white>" + (mine.getSettings().hasPermission()
-                                        ? mine.getSettings().getPermission() : "Nenhuma (publica)")),
-                                ChatUtil.parse("<gray>Exemplo: <white>alkaminas.mina.vip"),
-                                ChatUtil.parse(""),
-                                ChatUtil.parse("<yellow>Clique para alterar")
-                        ),
-                        event -> promptPermission(admin, mineId))
-                .backButton(22, event -> {
-                    admin.closeInventory();
-                    if (adminMainMenu != null) {
-                        adminMainMenu.open(admin, mineId);
-                    }
-                })
-                .build();
-
-        admin.openInventory(inv);
+        new MineResetGui(plugin, admin, mineManager, hologramManager, this, adminMainMenu, mineId).open();
     }
 
-    private void promptInterval(Player admin, String mineId) {
+    void promptInterval(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.INTERVAL));
         admin.closeInventory();
         ChatUtil.send(admin, "<yellow>Digite o intervalo de reset em minutos (ex: 30). Digite <red>cancelar</red><yellow> para voltar.");
     }
 
-    private void promptPercentage(Player admin, String mineId) {
+    void promptPercentage(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.PERCENTAGE));
         admin.closeInventory();
         ChatUtil.send(admin, "<yellow>Digite a porcentagem restante para resetar (0 a 100). Digite <red>cancelar</red><yellow> para voltar.");
     }
 
-    private void promptPermission(Player admin, String mineId) {
+    void promptPermission(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.PERMISSION));
         admin.closeInventory();
         ChatUtil.send(admin, "<yellow>Digite a permissao necessaria (ex: alkaminas.mina.vip). Digite <red>remover</red><yellow> para liberar ou <red>cancelar</red><yellow> para voltar.");
+    }
+
+    void promptActionbarRange(Player admin, String mineId) {
+        pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.ACTIONBAR_RANGE));
+        admin.closeInventory();
+        ChatUtil.send(admin, "<yellow>Digite o raio (em blocos) do ActionBar de status da mina. Digite <red>cancelar</red><yellow> para voltar.");
+    }
+
+    void promptBroadcast(Player admin, String mineId) {
+        pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.BROADCAST));
+        admin.closeInventory();
+        ChatUtil.send(admin, "<yellow>Digite o modo de broadcast do reset: <white>0</white> = mundo, <white>-1</white> = todos, "
+                + "<white>-2</white> = silencioso, <white>N</white> = raio em blocos. Digite <red>cancelar</red><yellow> para voltar.");
+    }
+
+    void promptResetCommand(Player admin, String mineId) {
+        pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.RESET_COMMAND));
+        admin.closeInventory();
+        ChatUtil.send(admin, "<yellow>Digite um comando pra rodar no reset (sem /, use <white>%mine%</white> e <white>%display%</white>). "
+                + "Digite <red>limpar</red><yellow> pra esvaziar a lista ou <red>cancelar</red><yellow> pra voltar.");
     }
 
     /** Chamado direto pelo AdminMainMenu - pula esta tela, vai direto pro chat. */
@@ -144,6 +123,9 @@ public class MineResetMenu {
             case CATEGORY -> handleCategoryInput(admin, mine, request, input);
             case RENAME -> handleRenameInput(admin, mine, request, input);
             case PERMISSION -> handlePermissionInput(admin, mine, request, input);
+            case ACTIONBAR_RANGE -> handleActionbarRangeInput(admin, mine, request, input);
+            case BROADCAST -> handleBroadcastInput(admin, mine, request, input);
+            case RESET_COMMAND -> handleResetCommandInput(admin, mine, request, input);
         }
     }
 
@@ -224,14 +206,72 @@ public class MineResetMenu {
         reopenAfter(Field.PERMISSION, admin, request.mineId());
     }
 
-    /** INTERVAL/PERCENTAGE/PERMISSION voltam pra esta tela (de onde vieram); CATEGORY/RENAME
-     *  foram chamados direto do AdminMainMenu, entao voltam pra la. */
+    /** INTERVAL/PERCENTAGE/PERMISSION/ACTIONBAR_RANGE/BROADCAST/RESET_COMMAND voltam pra
+     *  esta tela (de onde vieram); CATEGORY/RENAME foram chamados direto do
+     *  AdminMainMenu, entao voltam pra la. */
     private void reopenAfter(Field field, Player admin, String mineId) {
-        if (field == Field.INTERVAL || field == Field.PERCENTAGE || field == Field.PERMISSION) {
+        boolean fromHere = field == Field.INTERVAL || field == Field.PERCENTAGE || field == Field.PERMISSION
+                || field == Field.ACTIONBAR_RANGE || field == Field.BROADCAST || field == Field.RESET_COMMAND;
+        if (fromHere) {
             Bukkit.getScheduler().runTask(plugin, () -> open(admin, mineId));
         } else if (adminMainMenu != null) {
             Bukkit.getScheduler().runTask(plugin, () -> adminMainMenu.open(admin, mineId));
         }
+    }
+
+    private void handleActionbarRangeInput(Player admin, Mine mine, PendingResetInput request, String input) {
+        int range;
+        try {
+            range = Integer.parseInt(input.trim());
+        } catch (NumberFormatException e) {
+            ChatUtil.send(admin, "<red>Valor invalido. Digite um numero inteiro >= 0, ou 'cancelar'.");
+            pending.put(admin.getUniqueId(), request);
+            return;
+        }
+        if (range < 0) {
+            ChatUtil.send(admin, "<red>O raio nao pode ser negativo.");
+            pending.put(admin.getUniqueId(), request);
+            return;
+        }
+        mine.getSettings().setActionbarRange(range);
+        mineManager.save();
+        ChatUtil.send(admin, "<green>Raio do ActionBar definido para " + range + " blocos.");
+        reopenAfter(Field.ACTIONBAR_RANGE, admin, request.mineId());
+    }
+
+    private void handleBroadcastInput(Player admin, Mine mine, PendingResetInput request, String input) {
+        int mode;
+        try {
+            mode = Integer.parseInt(input.trim());
+        } catch (NumberFormatException e) {
+            ChatUtil.send(admin, "<red>Valor invalido. Digite 0, -1, -2 ou um raio >= 1, ou 'cancelar'.");
+            pending.put(admin.getUniqueId(), request);
+            return;
+        }
+        mine.getSettings().setBroadcastMode(mode);
+        mineManager.save();
+        ChatUtil.send(admin, "<green>Broadcast do reset definido para o modo " + mode + ".");
+        reopenAfter(Field.BROADCAST, admin, request.mineId());
+    }
+
+    private void handleResetCommandInput(Player admin, Mine mine, PendingResetInput request, String input) {
+        if (input.equalsIgnoreCase("limpar")) {
+            mine.getSettings().getResetCommands().clear();
+            mineManager.save();
+            ChatUtil.send(admin, "<green>Lista de comandos de reset esvaziada.");
+            reopenAfter(Field.RESET_COMMAND, admin, request.mineId());
+            return;
+        }
+        String command = input.trim();
+        if (command.isEmpty()) {
+            ChatUtil.send(admin, "<red>Comando vazio.");
+            pending.put(admin.getUniqueId(), request);
+            return;
+        }
+        mine.getSettings().getResetCommands().add(command);
+        mineManager.save();
+        ChatUtil.send(admin, "<green>Comando adicionado: /" + command);
+        reopenAfter(Field.RESET_COMMAND, admin, request.mineId());
     }
 
     private String trim(double value) {
@@ -239,7 +279,7 @@ public class MineResetMenu {
     }
 
     private enum Field {
-        INTERVAL, PERCENTAGE, CATEGORY, RENAME, PERMISSION
+        INTERVAL, PERCENTAGE, CATEGORY, RENAME, PERMISSION, ACTIONBAR_RANGE, BROADCAST, RESET_COMMAND
     }
 
     public record PendingResetInput(String mineId, Field field) {

@@ -6,8 +6,10 @@ public class MineBlock {
 
     private Material material;
     private double weight;
-    private double normalXp; // XP vanilla dado ao quebrar - 0 = nenhum (comportamento atual)
-    private double mcmmoXp; // XP de mcMMO (Mineracao) - 0 = usa a tabela global mcmmo-xp do config.yml
+    private double normalXp; // XP vanilla dado ao quebrar - 0 = nenhum
+    private double mcmmoXp; // XP de mcMMO (Mineracao) - so vale quando mcmmoXpConfigured=true
+    private boolean mcmmoXpConfigured; // true = valor da mina e autoritativo (0 = sem XP);
+                                       // false = cai pra tabela global mcmmo-xp do config.yml
 
     public MineBlock(Material material, double weight) {
         this.material = material;
@@ -44,5 +46,15 @@ public class MineBlock {
 
     public void setMcmmoXp(double mcmmoXp) {
         this.mcmmoXp = mcmmoXp;
+    }
+
+    /** true = o valor de {@link #getMcmmoXp()} da mina vale exatamente (0 = sem XP);
+     * false = usa a tabela global mcmmo-xp do config.yml como fallback. */
+    public boolean isMcmmoXpConfigured() {
+        return mcmmoXpConfigured;
+    }
+
+    public void setMcmmoXpConfigured(boolean mcmmoXpConfigured) {
+        this.mcmmoXpConfigured = mcmmoXpConfigured;
     }
 }

@@ -5,17 +5,17 @@ api-version: '1.21.8'
 author: MestreDEV
 description: Sistema de minas/prison - selecao via WorldEdit, reset em massa via FAWE, hologramas e GUIs.
 depend: [AlkaCore, FastAsyncWorldEdit]
-softdepend: [PlaceholderAPI, DecentHolograms, AlkaEconomy, AlkaShop, AlkaDrop, AdvancedEnchantments, mcMMO, ItemsAdder, BossesPro]
+softdepend: [PlaceholderAPI, DecentHolograms, AlkaEconomy, AlkaShop, AlkaDrop, AdvancedEnchantments, mcMMO, ItemsAdder, BossesPro, PlotSquared]
 
 commands:
   alkamines:
     description: Gerencia as minas do servidor.
     aliases: [minaadmin, minadmin, ma]
-    usage: /<command> <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear>
+    usage: /<command> <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear|debug|givegerador|esquematicos|registrarmina>
   mina:
     description: Abre o menu de minas, teleporta ou sai de uma mina.
     aliases: [minas]
-    usage: /<command> [ir <id>|sair|lista|ranking]
+    usage: /<command> [ir <id>|sair|lista|ranking|particular info|particular deletar]
 
 permissions:
   alkaminas.admin.criar:
@@ -56,6 +56,18 @@ permissions:
     default: op
   alkaminas.admin.bypass.commands:
     description: Ignora o bloqueio de comandos (mine-protection.blocked-commands) dentro de uma mina.
+    default: op
+  alkaminas.admin.debug:
+    description: Liga/desliga o log de debug do AlkaMines no console.
+    default: op
+  alkaminas.admin.givegerador:
+    description: Da o item gerador de mina particular para um jogador.
+    default: op
+  alkaminas.admin.esquematicos:
+    description: Lista os schematics disponiveis e os templates que os usam.
+    default: op
+  alkaminas.admin.registrarmina:
+    description: Salva a selecao do WorldEdit como schematic e amarra num template de mina particular.
     default: op
   alkaminas.ir:
     description: Permite usar /mina ir para teleportar ate uma mina.

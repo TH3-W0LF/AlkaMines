@@ -22,6 +22,7 @@ public class Mine {
     private String category;
     private Material icon;
     private String iconItemsAdder; // namespace do ItemsAdder - tem prioridade sobre icon quando definido
+    private List<MineReward> rewards;
 
     public Mine(String id, String displayName, MineRegion region) {
         this.id = id;
@@ -38,6 +39,7 @@ public class Mine {
         this.category = "geral";
         this.icon = null;
         this.iconItemsAdder = null;
+        this.rewards = new ArrayList<>();
     }
 
     public String getId() {
@@ -181,5 +183,14 @@ public class Mine {
 
     public void setIconItemsAdder(String iconItemsAdder) {
         this.iconItemsAdder = iconItemsAdder;
+    }
+
+    /** Recompensas aleatorias ao quebrar blocos desta mina (ver MineReward). */
+    public List<MineReward> getRewards() {
+        return rewards;
+    }
+
+    public void setRewards(List<MineReward> rewards) {
+        this.rewards = rewards != null ? rewards : new ArrayList<>();
     }
 }

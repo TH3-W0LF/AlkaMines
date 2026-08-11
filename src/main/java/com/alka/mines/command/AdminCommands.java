@@ -5,10 +5,14 @@ import com.alka.mines.hologram.HologramManager;
 import com.alka.mines.hook.WorldEditHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
+import com.alka.mines.manager.PrivateMineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.model.MineRegion;
+import com.alka.mines.model.MineTemplate;
 import com.alka.mines.service.MineResetService;
 import com.alka.mines.util.ChatUtil;
+import com.alka.mines.util.DebugLogger;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -32,7 +36,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = List.of(
             "criar", "deletar", "editar", "resetar", "setspawn", "setlobby", "removelobby",
-            "setsaida", "lista", "reload", "renomear");
+            "setsaida", "lista", "reload", "renomear", "debug", "givegerador", "esquematicos", "registrarmina");
 
     private final MineManager mineManager;
     private final WorldEditHook worldEditHook;
@@ -40,22 +44,24 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
     private final MineResetService resetService;
     private final PlayerDataManager playerDataManager;
     private final HologramManager hologramManager;
+    private final PrivateMineManager privateMineManager;
 
     public AdminCommands(MineManager mineManager, WorldEditHook worldEditHook, AdminMainMenu adminMainMenu,
                           MineResetService resetService, PlayerDataManager playerDataManager,
-                          HologramManager hologramManager) {
+                          HologramManager hologramManager, PrivateMineManager privateMineManager) {
         this.mineManager = mineManager;
         this.worldEditHook = worldEditHook;
         this.adminMainMenu = adminMainMenu;
         this.resetService = resetService;
         this.playerDataManager = playerDataManager;
         this.hologramManager = hologramManager;
+        this.privateMineManager = privateMineManager;
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 0) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear>");
+            ChatUtil.send(sender, "<red>Uso: /alkamines <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear|debug|givegerador|esquematicos|registrarmina>");
             return true;
         }
 
@@ -71,6 +77,10 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             case "lista" -> handleLista(sender);
             case "reload" -> handleReload(sender);
             case "renomear" -> handleRenomear(sender, args);
+            case "debug" -> handleDebug(sender);
+            case "givegerador" -> handleGiveGerador(sender, args);
+            case "esquematicos" -> handleEsquematicos(sender);
+            case "registrarmina" -> handleRegistrarMina(sender, args);
             default -> ChatUtil.send(sender, "<red>Subcomando desconhecido.");
         }
         return true;
@@ -126,6 +136,16 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         Optional<MineRegion> selection = worldEditHook.getSelection(player);
         if (selection.isEmpty()) {
             ChatUtil.send(sender, "<red>Voce precisa de uma selecao valida do WorldEdit (//pos1, //pos2 ou //wand).");
+            return;
+        }
+
+        int maxMineSize = mineManager.getMaxMineSize();
+        if (maxMineSize > 0 && !mineManager.isWithinSizeLimit(selection.get())) {
+            long area = (long) (selection.get().getX2() - selection.get().getX1() + 1)
+                    * (selection.get().getZ2() - selection.get().getZ1() + 1);
+            ChatUtil.send(sender, "<red>Mina muito grande: <white>" + area + "</white><red> blocos de area (X*Z), "
+                    + "limite configurado de <white>" + maxMineSize + "</white><red>. "
+                    + "Ajuste <white>max-mine-size</white> no config.yml se precisar.");
             return;
         }
 
@@ -239,6 +259,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         }
 
         mine.setLobbyRegion(selection.get());
+        mineManager.reindexMine(mine);
         mineManager.save();
         ChatUtil.send(sender, "<green>Area da mina '" + id + "' (lobby/dungeon) definida.");
         ChatUtil.send(sender, "<gray>A regiao de mineracao continua sendo a original - o lobby so vale pra tracking/placeholder e protecao de comando.");
@@ -261,6 +282,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         }
 
         mine.setLobbyRegion(null);
+        mineManager.reindexMine(mine);
         mineManager.save();
         ChatUtil.send(sender, "<green>Area da mina '" + id + "' removida - agora so a regiao de mineracao conta.");
     }
@@ -311,7 +333,8 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         }
         mineManager.save();
         mineManager.load();
-        ChatUtil.send(sender, "<green>Configuracao do AlkaMines (mines.yml) recarregada.");
+        privateMineManager.reload();
+        ChatUtil.send(sender, "<green>Configuracao do AlkaMines (mines.yml + private-mine-templates.yml) recarregada.");
     }
 
     private void handleRenomear(CommandSender sender, String[] args) {
@@ -337,6 +360,103 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         ChatUtil.send(sender, "<green>Mina '" + id + "' renomeada para '" + name + "'.");
     }
 
+    /** Liga/desliga o log de debug no console ([AlkaMines-DEBUG]) - nao precisa de reload,
+     * mas nao persiste entre restarts (pro boot persistente, use debug: true no config.yml). */
+    private void handleDebug(CommandSender sender) {
+        if (!checkPermission(sender, "debug")) {
+            return;
+        }
+        boolean nowEnabled = !DebugLogger.isEnabled();
+        DebugLogger.setEnabled(nowEnabled);
+        ChatUtil.send(sender, nowEnabled
+                ? "<green>Debug do AlkaMines <white>LIGADO</white><green> - logs no console ([AlkaMines-DEBUG])."
+                : "<red>Debug do AlkaMines <white>DESLIGADO</white><red>.");
+    }
+
+    /** /alkamines givegerador <jogador> <template> - da o item gerador de mina particular. */
+    private void handleGiveGerador(CommandSender sender, String[] args) {
+        if (!checkPermission(sender, "givegerador")) {
+            return;
+        }
+        if (args.length < 3) {
+            ChatUtil.send(sender, "<red>Uso: /alkamines givegerador <jogador> <template>");
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null || !target.isOnline()) {
+            ChatUtil.send(sender, "<red>Jogador offline: " + args[1]);
+            return;
+        }
+        Optional<MineTemplate> template = privateMineManager.getTemplate(args[2]);
+        if (template.isEmpty()) {
+            ChatUtil.send(sender, "<red>Template de mina particular nao encontrado: " + args[2]);
+            return;
+        }
+        target.getInventory().addItem(privateMineManager.createGeneratorItem(template.get()));
+        ChatUtil.send(sender, "<green>Gerador de '" + template.get().getId() + "' entregue a " + target.getName() + ".");
+        ChatUtil.send(target, "<green>Voce recebeu um gerador de mina particular! Use-o com clique direito na sua plot.");
+    }
+
+    /** /alkamines esquematicos - mostra os .schem que o plugin enxerga e quais templates usam cada um. */
+    private void handleEsquematicos(CommandSender sender) {
+        if (!checkPermission(sender, "esquematicos")) {
+            return;
+        }
+        List<java.io.File> files = privateMineManager.listSchematicFiles();
+        ChatUtil.send(sender, "<aqua><b>Schematics encontrados (" + files.size() + "):</b>");
+        if (files.isEmpty()) {
+            ChatUtil.send(sender, "<yellow>Nenhum .schem. Fluxo: //wand, selecione, //copy, //schem save <nome>.");
+            return;
+        }
+        for (java.io.File file : files) {
+            String template = privateMineManager.getTemplates().stream()
+                    .filter(t -> t.getSchematic() != null
+                            && (t.getSchematic().endsWith(".schem")
+                            ? t.getSchematic().equalsIgnoreCase(file.getName())
+                            : t.getSchematic().equalsIgnoreCase(file.getName().replace(".schem", ""))))
+                    .map(com.alka.mines.model.MineTemplate::getId)
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("(sem template)");
+            ChatUtil.send(sender, "<gray>- <white>" + file.getName() + " <dark_gray>(" + file.getParentFile().getName()
+                    + ") <green>-> " + template);
+        }
+        ChatUtil.send(sender, "<gray>Dica: defina 'schematic: <nome>' no template e rode /alkamines reload.");
+    }
+
+    /** /alkamines registrarmina [<template>] <nome> - salva a selecao do WorldEdit como schematic
+     *  e amarra no template. Sem //copy: o plugin salva direto da selecao. Com 1 argumento,
+     *  cria um template novo com o mesmo nome do schematic. */
+    private void handleRegistrarMina(CommandSender sender, String[] args) {
+        if (!checkPermission(sender, "registrarmina")) {
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            ChatUtil.send(sender, "<red>Apenas jogadores podem usar esse comando.");
+            return;
+        }
+        if (args.length < 2) {
+            ChatUtil.send(sender, "<red>Uso: /alkamines registrarmina <nome>   (cria template novo)");
+            ChatUtil.send(sender, "<red>      /alkamines registrarmina <template> <nome>   (usa template existente)");
+            return;
+        }
+        String templateId;
+        String name;
+        if (args.length == 2) {
+            templateId = args[1];
+            name = args[1];
+        } else {
+            templateId = args[1];
+            name = args[2];
+        }
+        String error = privateMineManager.registerMineSchematic(player, name, templateId);
+        if (error != null) {
+            ChatUtil.send(sender, error);
+            return;
+        }
+        ChatUtil.send(sender, "<green>Mina '" + name + "' registrada no template '" + templateId
+                + "'. Da o gerador com /alkamines givegerador <jogador> " + templateId + " e ative na plot.");
+    }
+
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 1) {
@@ -344,6 +464,15 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2 && List.of("deletar", "editar", "resetar", "setspawn", "setlobby", "removelobby", "renomear").contains(args[0].toLowerCase())) {
             return mineManager.getMines().stream().map(Mine::getId).collect(Collectors.toList());
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("givegerador")) {
+            return Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("givegerador")) {
+            return privateMineManager.getTemplates().stream().map(MineTemplate::getId).collect(Collectors.toList());
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("registrarmina")) {
+            return privateMineManager.getTemplates().stream().map(MineTemplate::getId).collect(Collectors.toList());
         }
         return Collections.emptyList();
     }

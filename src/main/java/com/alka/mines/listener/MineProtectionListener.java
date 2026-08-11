@@ -2,6 +2,7 @@ package com.alka.mines.listener;
 
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
+import com.alka.mines.util.DebugLogger;
 import org.bukkit.Material;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -39,6 +40,8 @@ public class MineProtectionListener implements Listener {
         }
         if (mineManager.getMineLobbyAt(event.getBlock().getLocation()).isPresent()) {
             event.setCancelled(true);
+            DebugLogger.log("Place bloqueado: %s tentou colocar %s dentro da area de uma mina.",
+                    event.getPlayer().getName(), event.getBlock().getType());
         }
     }
 
@@ -64,5 +67,9 @@ public class MineProtectionListener implements Listener {
         }
 
         event.setCancelled(true);
+        DebugLogger.log("Break cancelado: %s tentou quebrar %s em %d,%d,%d (nao e bloco de composicao da mina '%s').",
+                event.getPlayer().getName(), event.getBlock().getType(),
+                event.getBlock().getX(), event.getBlock().getY(), event.getBlock().getZ(),
+                mine.getId());
     }
 }

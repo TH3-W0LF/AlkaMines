@@ -1,5 +1,6 @@
 package com.alka.mines.listener;
 
+import com.alka.mines.event.MineBlockBreakEvent;
 import com.alka.mines.hook.AdvancedEnchantmentsHook;
 import com.alka.mines.hook.AlkaDropHook;
 import com.alka.mines.hook.AlkaShopHook;
@@ -8,9 +9,14 @@ import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PickaxeLevelManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.manager.PlayerMineData;
+import com.alka.mines.manager.PrivateMineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.model.MineBlock;
+import com.alka.mines.model.MineReward;
+import com.alka.mines.model.PrivateMine;
 import com.alka.mines.util.ChatUtil;
+import com.alka.mines.util.DebugLogger;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -30,6 +36,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 
 /**
@@ -51,16 +60,16 @@ import java.util.function.Supplier;
  * ou solto no chao (vanilla, `dropItemNaturally`) quando nao esta - "auto-coletar
  * sem precisar andar em cima do item" e uma feature do AlkaDrop, nao da mina.
  *
- * HIGHEST + ignoreCancelled=true: plugins de protecao (WorldGuard etc.) em
- * prioridades mais baixas ja tiveram chance de cancelar - se cancelaram, nosso
- * handler nem roda (ignoreCancelled=true) e o bloco desta mina nao e tocado. Se
- * chegou ate aqui, cancelamos o evento NOS MESMOS e assumimos o controle manual
- * completo (drops e remocao do bloco) em vez de deixar o vanilla processar em cima
- * de um bloco que ja modificamos.
+ * Soft-cancel das quebras de mina (ver {@link #onBreakPre} e {@link #onBreak}):
+ * o evento e cancelado em LOWEST e re-ativado em HIGHEST. No meio do caminho,
+ * listeners com ignoreCancelled=true (mcMMO, AlkaDrop, etc.) veem o evento
+ * cancelado e nao concedem XP/drops nativos em cima do que o AlkaMines entrega;
+ * no final, o evento NAO termina cancelado, entao o vanilla quebra o bloco
+ * (fisica, som, particula, broadcast pra todos) sem ghost block nem kick de
+ * "floating too long".
  *
- * Nota: cancelar aqui faz qualquer plugin de log/anti-grief registrado em MONITOR
- * (ex: CoreProtect) ver isCancelled()=true - se algum desses plugins decidir NAO
- * logar a quebra por causa disso, isso e um efeito colateral a se observar.
+ * Nota: a quebra termina como real (isCancelled=false) - plugins de log/anti-grief
+ * (ex: CoreProtect) logam normalmente, comportamento correto pra uma mina.
  *
  * Nao chama MineManager.save() aqui de proposito - reescreveria o mines.yml inteiro
  * a cada bloco quebrado. blocksRemaining so persiste de fato no proximo reset ou no
@@ -68,9 +77,21 @@ import java.util.function.Supplier;
  */
 public class MineBreakListener implements Listener {
 
+    /**
+     * Soft-cancel das quebras de mina: o evento e cancelado em LOWEST (antes do mcMMO e
+     * de qualquer listener com ignoreCancelled=true processar, impedindo XP/drops nativos
+     * em dobro) e re-ativado em HIGHEST (ver {@link #onBreak}) pra o vanilla quebrar o
+     * bloco normalmente - o que elimina o ghost block (o Paper reenvia o bloco original
+     * pro quebrador quando o evento TERMINA cancelado) e o kick de "floating too long"
+     * (remocao sem fisica). A chave e a posicao do bloco; o par LOWEST/HIGHEST sempre se
+     * equilibra na mesma dispatch do evento, entao a entrada nunca fica pendurada.
+     */
+    private final Set<String> softCancelledBreaks = ConcurrentHashMap.newKeySet();
+
     private final MineManager mineManager;
     private final PlayerDataManager playerDataManager;
     private final PickaxeLevelManager levelManager;
+    private final PrivateMineManager privateMineManager;
     private final Optional<AlkaShopHook> shopHook;
     private final Optional<McMMOHook> mcmmoHook;
     private final Optional<AdvancedEnchantmentsHook> aeHook;
@@ -88,20 +109,33 @@ public class MineBreakListener implements Listener {
     private final Supplier<Optional<AlkaDropHook>> dropHookSupplier;
 
     public MineBreakListener(MineManager mineManager, PlayerDataManager playerDataManager,
-                              PickaxeLevelManager levelManager, Optional<AlkaShopHook> shopHook,
-                              Optional<McMMOHook> mcmmoHook, Optional<AdvancedEnchantmentsHook> aeHook,
+                              PickaxeLevelManager levelManager, PrivateMineManager privateMineManager,
+                              Optional<AlkaShopHook> shopHook, Optional<McMMOHook> mcmmoHook,
+                              Optional<AdvancedEnchantmentsHook> aeHook,
                               Supplier<Optional<AlkaDropHook>> dropHookSupplier) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
         this.levelManager = levelManager;
+        this.privateMineManager = privateMineManager;
         this.shopHook = shopHook;
         this.mcmmoHook = mcmmoHook;
         this.aeHook = aeHook;
         this.dropHookSupplier = dropHookSupplier;
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onBreak(BlockBreakEvent event) {
+    /**
+     * LOWEST: marca a quebra de um bloco de composicao de mina como cancelado pro resto
+     * do evento - mcMMO (e qualquer outro listener com ignoreCancelled=true) ve o evento
+     * cancelado e nao concede XP/drops nativos em cima do que o AlkaMines entrega. Nao
+     * e cancelamento definitivo: o {@link #onBreak} (HIGHEST) re-ativa e o vanilla quebra
+     * normal. Bloco fora da composicao nem entra aqui - quem bloqueia e o
+     * MineProtectionListener.
+     */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onBreakPre(BlockBreakEvent event) {
+        if (event.isCancelled()) {
+            return;
+        }
         Player player = event.getPlayer();
         if (player.getGameMode() == GameMode.CREATIVE) {
             return;
@@ -110,8 +144,57 @@ public class MineBreakListener implements Listener {
         Block block = event.getBlock();
         Mine mine = mineManager.getMineAt(block.getLocation()).orElse(null);
         if (mine == null) {
+            // mina particular: qualquer bloco da plot quebra (protecao e do PlotSquared)
+            if (privateMineManager != null && privateMineManager.getMineAt(block.getLocation()).isPresent()) {
+                event.setCancelled(true);
+                softCancelledBreaks.add(blockKey(block));
+            }
             return;
         }
+        if (resolveCompositionBlock(mine, block) == null) {
+            return;
+        }
+
+        event.setCancelled(true);
+        softCancelledBreaks.add(blockKey(block));
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBreak(BlockBreakEvent event) {
+        Block block = event.getBlock();
+        if (!softCancelledBreaks.remove(blockKey(block))) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+
+        Mine mine = mineManager.getMineAt(block.getLocation()).orElse(null);
+        PrivateMine privateMine = mine == null ? privateMineManager.getMineAt(block.getLocation()).orElse(null) : null;
+        if (mine == null && privateMine == null) {
+            return;
+        }
+
+        // API: MineBlockBreakEvent cancelavel (so minas publicas, que tem Mine) - se
+        // cancelado, o evento de quebra fica cancelado e o bloco permanece no lugar.
+        if (mine != null) {
+            MineBlockBreakEvent breakEvent = new MineBlockBreakEvent(player, mine, block);
+            Bukkit.getPluginManager().callEvent(breakEvent);
+            if (breakEvent.isCancelled()) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+
+        // re-ativa a quebra pro vanilla processar (fisica, som, particula, broadcast) -
+        // o bloco so e removido porque o evento NAO termina cancelado.
+        event.setCancelled(false);
+
+        DebugLogger.log("Break: %s quebrou %s em %d,%d,%d (mina '%s').",
+                player.getName(), block.getType(), block.getX(), block.getY(), block.getZ(),
+                mine != null ? mine.getId() : "privada:" + privateMine.getOwner());
 
         // Resolvido por chamada, nao no construtor - ver javadoc de dropHookSupplier.
         Optional<AlkaDropHook> dropHook = dropHookSupplier.get();
@@ -123,7 +206,12 @@ public class MineBreakListener implements Listener {
         // entrada da composicao que corresponde a este bloco (null se nao configurado) -
         // traz os overrides de %/XP definidos direto no BlockCompositionMenu. Precisa
         // ser resolvido AGORA, antes de qualquer remocao (usa o Material original).
-        MineBlock compositionBlock = resolveCompositionBlock(mine, block);
+        MineBlock compositionBlock = mine != null ? resolveCompositionBlock(mine, block) : null;
+        if (compositionBlock == null && privateMine != null) {
+            compositionBlock = privateMineManager.getTemplate(privateMine.getTemplateId())
+                    .flatMap(t -> Optional.ofNullable(t.getCompositionBlock(block.getType())))
+                    .orElse(null);
+        }
 
         // drops calculados com o bloco ainda no tipo original, ANTES de cancelar/remover.
         // Lista mutavel (nao a Collection crua de getDrops) porque o hook do AlkaDrop
@@ -132,51 +220,95 @@ public class MineBreakListener implements Listener {
         List<ItemStack> drops = new ArrayList<>(block.getDrops(tool));
         boolean silkTouch = tool.containsEnchantment(Enchantment.SILK_TOUCH);
 
-        event.setCancelled(true);
+        // O evento foi soft-cancelado em LOWEST e re-ativado aqui em HIGHEST - termina
+        // NAO cancelado, entao o vanilla quebra o bloco (fisica, som, particula e
+        // broadcast pra todos os jogadores), sem ghost block nem kick de "floating".
+        // So suprimimos drops/XP nativos e entregamos os nossos abaixo.
         event.setDropItems(false);
         event.setExpToDrop(0);
 
-        applyXp(player, block, compositionBlock);
-
-        // applyPhysics=true aqui gera ghost block: o servidor processa fisica
-        // (redstone/luz/blocos adjacentes) em cima de um BlockBreakEvent que ele acha
-        // cancelado, criando uma corrida em que o bloco pode nao sincronizar direito
-        // com o cliente. Removemos sem fisica e sincronizamos manualmente com todos os
-        // jogadores proximos (nao so quem quebrou), senao jogadores por perto ainda
-        // veem o bloco antigo (ghost block pra eles).
-        Location location = block.getLocation();
-        block.setType(Material.AIR, false);
-        for (Player nearby : block.getWorld().getPlayers()) {
-            if (nearby.getLocation().distanceSquared(location) < 2500) {
-                nearby.sendBlockChange(location, Material.AIR.createBlockData());
-            }
+        if (mine != null) {
+            applyRewards(player, block, mine, drops);
         }
 
-        trackProgress(player, mine);
+        applyXp(player, block, compositionBlock);
+
+        if (mine != null) {
+            trackProgress(player, mine);
+        } else {
+            trackPrivateProgress(player, privateMine);
+        }
+        DebugLogger.log("Break ok: restantes=%d (drops=%d, vendido=%s).",
+                mine != null ? mine.getBlocksRemaining() : privateMine.getBlocksRemaining(), drops.size(),
+                shopHook.isPresent() ? "sim" : "nao");
 
         // Auto-smelt do AlkaDrop (se o jogador tiver ativo) processa o drop ANTES de
         // dar/vender - assim a auto-venda do AlkaShop logo abaixo ja vende pelo preco
         // do ingot, nao do minerio bruto. AlkaDropHook nunca lanca (ver javadoc dele).
         dropHook.ifPresent(hook -> hook.trySmelt(player, drops, silkTouch));
 
-        StringBuilder actionBar = new StringBuilder();
-
-        giveOrSellDrops(player, drops, actionBar, location, dropHook);
+        giveOrSellDrops(player, drops, block.getLocation(), dropHook);
 
         // Auto-condensar do AlkaDrop roda DEPOIS, sobre o inventario inteiro do
         // jogador (nao so o que acabou de ser minerado) - ver CondenseManager#
         // condenseInventory no AlkaDrop pro motivo (acumula corretamente entre
         // blocos diferentes minerados um de cada vez).
         dropHook.ifPresent(hook -> hook.tryCondenseInventory(player));
+    }
 
-        if (!actionBar.isEmpty()) {
-            player.sendActionBar(ChatUtil.parse(actionBar.toString()));
+    /** Random rewards da mina (estilo AxMines, reimplementado): itens + comandos +
+     * prevent-drops. Roda no bloco quebrado; preventDrops limpa os drops normais. */
+    private void applyRewards(Player player, Block block, Mine mine, List<ItemStack> drops) {
+        if (mine.getRewards().isEmpty()) {
+            return;
+        }
+
+        boolean preventDrops = false;
+        List<ItemStack> rewardItems = new ArrayList<>();
+        List<String> rewardCommands = new ArrayList<>();
+
+        for (MineReward reward : mine.getRewards()) {
+            if (!reward.matches(block.getType())) {
+                continue;
+            }
+            if (ThreadLocalRandom.current().nextDouble() * 100.0 < reward.getChance()) {
+                rewardItems.addAll(reward.getItems());
+                rewardCommands.addAll(reward.getCommands());
+                preventDrops |= reward.isPreventDrops();
+            }
+        }
+
+        for (String command : rewardCommands) {
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command.replace("<player>", player.getName()));
+        }
+        for (ItemStack item : rewardItems) {
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(item.clone());
+            for (ItemStack extra : leftover.values()) {
+                block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), extra);
+            }
+        }
+        if (preventDrops) {
+            drops.clear();
         }
     }
 
     private void trackProgress(Player player, Mine mine) {
         mine.setBlocksRemaining(Math.max(0, mine.getBlocksRemaining() - 1));
+        // so marca pra persistir no proximo saveDirty (autosave periodico/onDisable) - chamar
+        // mineManager.save() aqui reescreveria o mines.yml inteiro a cada bloco quebrado.
+        mineManager.markDirty(mine.getId());
 
+        PlayerMineData data = playerDataManager.get(player.getUniqueId());
+        data.incrementBlocksBroken();
+
+        if (data.recalculateLevel(levelManager.getThresholds())) {
+            announceLevelUp(player, data);
+        }
+    }
+
+    /** Progresso de quebra numa mina PARTICULAR (contagem in-memory + XP de picareta). */
+    private void trackPrivateProgress(Player player, PrivateMine mine) {
+        mine.setBlocksRemaining(Math.max(0, mine.getBlocksRemaining() - 1));
         PlayerMineData data = playerDataManager.get(player.getUniqueId());
         data.incrementBlocksBroken();
 
@@ -202,6 +334,11 @@ public class MineBreakListener implements Listener {
         return null;
     }
 
+    /** Chave unica de posicao de bloco usada no soft-cancel (mundo + X/Y/Z). */
+    private static String blockKey(Block block) {
+        return block.getWorld().getName() + ":" + block.getX() + "," + block.getY() + "," + block.getZ();
+    }
+
     private void announceLevelUp(Player player, PlayerMineData data) {
         int newLevel = data.getPickaxeLevel();
         long next = levelManager.getBlocksForNextLevel(newLevel);
@@ -217,7 +354,7 @@ public class MineBreakListener implements Listener {
         ChatUtil.send(player, "");
     }
 
-    private void giveOrSellDrops(Player player, Collection<ItemStack> drops, StringBuilder actionBar, Location dropLocation,
+    private void giveOrSellDrops(Player player, Collection<ItemStack> drops, Location dropLocation,
                                   Optional<AlkaDropHook> dropHook) {
         Map<String, Double> soldTotals = new LinkedHashMap<>();
         List<ItemStack> toDeliver = new ArrayList<>();
@@ -251,22 +388,7 @@ public class MineBreakListener implements Listener {
         }
 
         if (!soldTotals.isEmpty()) {
-            if (!actionBar.isEmpty()) {
-                actionBar.append("  ");
-            }
-            actionBar.append("<green><bold>+</bold></green> <gray>(auto-venda: ");
-            int i = 0;
-            for (Map.Entry<String, Double> entry : soldTotals.entrySet()) {
-                if (i++ > 0) {
-                    actionBar.append(", ");
-                }
-                actionBar.append(trim(entry.getValue())).append(' ').append(entry.getKey());
-            }
-            actionBar.append(")</gray>");
+            shopHook.ifPresent(hook -> hook.notifyAutoSell(player, soldTotals));
         }
-    }
-
-    private String trim(double value) {
-        return value == Math.floor(value) ? String.valueOf((long) value) : String.format("%.1f", value);
     }
 }

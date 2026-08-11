@@ -1,9 +1,13 @@
 package com.alka.mines.listener;
 
+import com.alka.mines.event.MineEnterEvent;
+import com.alka.mines.event.MineLeaveEvent;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.manager.PlayerMineData;
+import com.alka.mines.manager.PrivateMineManager;
 import com.alka.mines.model.Mine;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -36,10 +40,13 @@ public class PlayerMineTrackerListener implements Listener {
 
     private final MineManager mineManager;
     private final PlayerDataManager playerDataManager;
+    private final PrivateMineManager privateMineManager;
 
-    public PlayerMineTrackerListener(MineManager mineManager, PlayerDataManager playerDataManager) {
+    public PlayerMineTrackerListener(MineManager mineManager, PlayerDataManager playerDataManager,
+                                     PrivateMineManager privateMineManager) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
+        this.privateMineManager = privateMineManager;
     }
 
     @EventHandler
@@ -61,9 +68,22 @@ public class PlayerMineTrackerListener implements Listener {
         PlayerMineData data = playerDataManager.get(player.getUniqueId());
         Optional<Mine> lobbyMine = mineManager.getMineLobbyAt(to);
 
-        String newMineId = lobbyMine.map(Mine::getId).orElse(null);
-        if (!Objects.equals(data.getCurrentMineId(), newMineId)) {
+        // mina particular: currentMineId = "privado" (placeholder mostra o status via
+        // PrivateMineManager; sem MineEnter/Leave por enquanto).
+        String newMineId = lobbyMine.map(Mine::getId)
+                .orElseGet(() -> privateMineManager.getMineAt(to).isPresent() ? "privado" : null);
+
+        String oldMineId = data.getCurrentMineId();
+        if (!Objects.equals(oldMineId, newMineId)) {
             data.setCurrentMineId(newMineId);
+
+            // API: eventos de entrada/saida de mina (so minas publicas).
+            if (newMineId != null && lobbyMine.isPresent()) {
+                Bukkit.getPluginManager().callEvent(new MineEnterEvent(player, lobbyMine.get()));
+            } else if (oldMineId != null && !oldMineId.equals("privado")) {
+                mineManager.getMine(oldMineId)
+                        .ifPresent(mine -> Bukkit.getPluginManager().callEvent(new MineLeaveEvent(player, mine)));
+            }
         }
     }
 

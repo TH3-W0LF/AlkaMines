@@ -1,5 +1,28 @@
 # Configuracao do AlkaMines.
 
+# Habilita o log de debug do AlkaMines no console ([AlkaMines-DEBUG]) - mostra o
+# que acontece por evento (mina encontrada por posicao, drops, resets com timing
+# do FAWE, protecao). Zero custo quando desligado. Tambem da pra alternar em
+# runtime com /alkamines debug.
+debug: false
+
+# Limite opcional de tamanho de mina (area X*Z em blocos, ex: 70x70 = 4900).
+# 0 = sem limite. Checado na criacao via /alkamines criar: minas gigantes pesam
+# no servidor (reset FAWE com milhoes de blocos, luz, chunks, holorma) e tambem
+# podem estourar o contador de blocos restantes (int). Ajuste pro seu planejamento.
+max-mine-size: 0
+
+# Minas particulares (PlotSquared): quantas minas particulares cada grupo pode ter.
+# A chave e usada como permissao - o jogador pode ter varias; o limite final e o MAIOR
+# valor entre as permissoes que ele tem. "default" vale pra quem nao tem nenhuma.
+# Ex: jogador com permissao "vip" e "mvp" tem limite 3 (o maximo).
+private-mine-limits:
+  default: 0
+  vip: 1
+  vip2: 2
+  mvp: 3
+
+
 # Comandos bloqueados dentro da area de uma mina (o lobbyRegion definido via
 # /alkamines setlobby, ou a propria regiao de mineracao se nenhum lobby foi
 # configurado) para jogadores sem a permissao alkaminas.admin.bypass.commands.
@@ -45,9 +68,9 @@ pickaxe-levels:
 
 # XP do mcMMO (skill Mineracao) por bloco quebrado dentro de uma mina - so tem
 # efeito com o mcMMO instalado (ver McMMOHook). Chave = nome do Material do Bukkit.
-# Serve so de FALLBACK global: se o bloco tiver um XP de mcMMO definido direto na
-# composicao da mina (menu Composicao de Blocos -> clique direito/shift+esquerdo no
-# bloco), esse valor por bloco sempre tem prioridade sobre esta tabela.
+# Serve so de FALLBACK global: vale apenas pro bloco que NAO teve XP de mcMMO
+# configurado na composicao da mina (menu Composicao de Blocos -> shift+esquerdo).
+# Se o bloco tiver XP configurado na mina, aquele valor e o unico usado - 0 = sem XP.
 mcmmo-xp:
   STONE: 1.0
   DEEPSLATE: 1.0
