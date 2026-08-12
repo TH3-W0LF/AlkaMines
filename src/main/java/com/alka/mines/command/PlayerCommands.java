@@ -1,6 +1,7 @@
 package com.alka.mines.command;
 
 import com.alka.mines.gui.MineListMenu;
+import com.alka.mines.gui.PrivateMineGui;
 import com.alka.mines.gui.RankingGui;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
@@ -21,10 +22,13 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -174,24 +178,93 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
             return;
         }
         switch (args[1].toLowerCase()) {
-            case "info" -> {
-                Optional<PrivateMine> mine = privateMineManager.getMineAt(player.getLocation());
-                if (mine.isEmpty()) {
-                    ChatUtil.send(player, "<yellow>Voce nao esta numa mina particular.");
+            case "menu" -> new PrivateMineGui(plugin, player, privateMineManager).open();
+            case "home" -> {
+                PrivateMine mine = privateMineManager.getMineProtectingAt(player.getLocation())
+                        .filter(m -> m.getOwner().equals(player.getUniqueId()))
+                        .orElseGet(() -> privateMineManager.getForPlayer(player.getUniqueId()).stream()
+                                .findFirst().orElse(null));
+                if (mine == null) {
+                    ChatUtil.send(player, "<red>Voce nao tem uma mina particular.");
                     return;
                 }
-                Optional<MineTemplate> template = privateMineManager.getTemplate(mine.get().getTemplateId());
-                long remainingMs = Math.max(0, template.map(t -> t.getResetIntervalMinutes()).orElse(0) * 60_000L
-                        - (System.currentTimeMillis() - mine.get().getLastReset()));
-                ChatUtil.send(player, "<aqua><b>Mina Particular:</b>");
-                ChatUtil.send(player, "<gray>Template: <white>" + (template.isPresent() ? template.get().getDisplayName() : mine.get().getTemplateId()));
-                ChatUtil.send(player, "<gray>Local: <white>" + mine.get().getWorldName() + " "
-                        + mine.get().getMinX() + "," + mine.get().getMinZ());
-                ChatUtil.send(player, "<gray>Blocos restantes: <white>" + mine.get().getBlocksRemaining());
-                ChatUtil.send(player, "<gray>Proximo reset em: <white>" + format(remainingMs / 1000));
+                player.teleport(privateMineManager.getHomeLocation(mine));
+                ChatUtil.send(player, "<green>Voce foi levado ao topo da sua mina.");
+            }
+            case "compartilhar" -> {
+                if (args.length < 3) {
+                    ChatUtil.send(player, "<red>Uso: /mina particular compartilhar <jogador>");
+                    return;
+                }
+                Player target = Bukkit.getPlayerExact(args[2]);
+                if (target == null || !target.isOnline()) {
+                    ChatUtil.send(player, "<red>Jogador offline: " + args[2]);
+                    return;
+                }
+                String error = privateMineManager.addMember(player, target);
+                if (error != null) {
+                    ChatUtil.send(player, error);
+                } else {
+                    ChatUtil.send(player, "<green>" + target.getName() + " agora e membro da sua mina.");
+                    ChatUtil.send(target, "<green>Voce agora pode usar a mina de " + player.getName() + ".");
+                }
+            }
+            case "info" -> {
+                PrivateMine mine = privateMineManager.getMineProtectingAt(player.getLocation())
+                        .orElseGet(() -> privateMineManager.getForPlayer(player.getUniqueId()).stream()
+                                .findFirst().orElse(null));
+                if (mine == null) {
+                    ChatUtil.send(player, "<yellow>Voce nao tem uma mina particular.");
+                    return;
+                }
+                Optional<MineTemplate> template = privateMineManager.getTemplate(mine.getTemplateId());
+                int interval = mine.getResetIntervalMinutes() > 0 ? mine.getResetIntervalMinutes()
+                        : template.map(MineTemplate::getResetIntervalMinutes).orElse(0);
+                long remainingMs = Math.max(0, interval * 60_000L - (System.currentTimeMillis() - mine.getLastReset()));
+                long remainingSec = remainingMs / 1000;
+                String timeReal = String.format("%02d:%02d", remainingSec / 60, remainingSec % 60);
+                String ownerName = Bukkit.getOfflinePlayer(mine.getOwner()).getName();
+                long volume = mine.volume();
+                double pct = volume > 0
+                        ? Math.round((mine.getBlocksRemaining() / (double) volume) * 1000.0) / 10.0 : 0.0;
+                String founded = new SimpleDateFormat("dd/MM/yyyy").format(new Date(mine.getCreatedAt()));
+                String expires = template.isPresent() && template.get().getExpiresInDays() > 0
+                        ? new SimpleDateFormat("dd/MM/yyyy").format(new Date(mine.getCreatedAt()
+                        + template.get().getExpiresInDays() * 86_400_000L))
+                        : "<green>Eterna";
+                ChatUtil.send(player, "<gold><bold>◈ Mina Particular ◈</bold>");
+                ChatUtil.send(player, "<gray>Tipo: <white>" + (template.isPresent()
+                        ? template.get().getDisplayName() : mine.getTemplateId()));
+                ChatUtil.send(player, "<gray>Dono: <white>" + (ownerName != null ? ownerName : mine.getOwner()));
+                ChatUtil.send(player, "<gray>Blocos: <white>" + String.format(Locale.US, "%,d", mine.getBlocksRemaining())
+                        + " <dark_gray>(" + pct + "%)");
+                ChatUtil.send(player, "<gray>Prox. Reset: <white>" + interval + "Min <dark_gray>/ " + timeReal);
+                ChatUtil.send(player, "<gray>Raridade: <yellow>" + template.map(MineTemplate::getRarity).orElse("★"));
+                ChatUtil.send(player, "<gray>Fundada: <white>" + founded);
+                ChatUtil.send(player, "<gray>Expira: <white>" + expires);
+            }
+            case "expandir" -> {
+                if (args.length < 3) {
+                    ChatUtil.send(player, "<red>Uso: /mina particular expandir <quantidade>");
+                    return;
+                }
+                int amount;
+                try {
+                    amount = Integer.parseInt(args[2]);
+                } catch (NumberFormatException e) {
+                    ChatUtil.send(player, "<red>Quantidade invalida.");
+                    return;
+                }
+                String error = privateMineManager.expand(player, amount);
+                if (error != null) {
+                    ChatUtil.send(player, error);
+                } else {
+                    ChatUtil.send(player, "<green>Mina expandida em " + amount + " bloco(s) pra cada lado! "
+                            + "Os novos blocos foram preenchidos com a composicao do template.");
+                }
             }
             case "deletar" -> {
-                Optional<PrivateMine> mine = privateMineManager.getMineAt(player.getLocation());
+                Optional<PrivateMine> mine = privateMineManager.getMineProtectingAt(player.getLocation());
                 if (mine.isEmpty() || !mine.get().getOwner().equals(player.getUniqueId())) {
                     ChatUtil.send(player, "<red>Nao existe uma mina particular sua aqui.");
                     return;
@@ -209,7 +282,7 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
                     ChatUtil.send(player, "<red>Nao foi possivel remover.");
                 }
             }
-            default -> ChatUtil.send(player, "<red>Uso: /mina particular <info|deletar>");
+            default -> ChatUtil.send(player, "<red>Uso: /mina particular <menu|info|deletar|expandir <quantidade>|home|compartilhar <jogador>>");
         }
     }
 
@@ -228,7 +301,7 @@ public class PlayerCommands implements CommandExecutor, TabCompleter {
             return mineManager.getMines().stream().map(Mine::getId).collect(Collectors.toList());
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("particular")) {
-            return List.of("info", "deletar").stream()
+            return List.of("menu", "info", "deletar", "expandir", "home", "compartilhar").stream()
                     .filter(s -> s.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
         }

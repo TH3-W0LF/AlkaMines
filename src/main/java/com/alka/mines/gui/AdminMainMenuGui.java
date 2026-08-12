@@ -1,20 +1,19 @@
 package com.alka.mines.gui;
 
+import com.alka.mines.config.MenuConfig;
 import com.alka.mines.hologram.HologramManager;
 import com.alka.mines.hook.ItemsAdderHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.util.ChatUtil;
 import com.alkacode.core.gui.BaseGui;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Map;
 
 /** GUI de 27 slots com as acoes administrativas de uma mina especifica (BaseGui do AlkaCore). */
 public class AdminMainMenuGui extends BaseGui {
@@ -40,7 +39,8 @@ public class AdminMainMenuGui extends BaseGui {
 
     private static String title(JavaPlugin plugin, MineManager mineManager, String mineId) {
         Mine mine = mineManager.getMine(mineId).orElse(null);
-        return "<dark_gray>Mina: " + (mine != null ? mine.getDisplayName() : mineId);
+        return MenuConfig.getInstance().title("titles.admin",
+                Map.of("mine", mine != null ? mine.getDisplayName() : mineId));
     }
 
     @Override
@@ -53,53 +53,39 @@ public class AdminMainMenuGui extends BaseGui {
         }
 
         boolean hologramsEnabled = hologramManager.isEnabled();
-        Component hologramName = hologramsEnabled
-                ? ChatUtil.parse("<aqua><bold>Setar Holograma")
-                : ChatUtil.parse("<gray><bold>Holograma Offline");
-        List<Component> hologramLore = hologramsEnabled
-                ? List.of(
-                        ChatUtil.parse("<gray>Local: <white>" + (mine.getHologramLocation() != null ? "Definido" : "Nao definido")),
-                        ChatUtil.parse(""),
-                        ChatUtil.parse("<yellow>Clique para spawnar/atualizar"))
-                : List.of(ChatUtil.parse("<red>DecentHolograms nao encontrado"));
 
         String iconName = mine.getIconItemsAdder() != null ? "ItemsAdder: " + mine.getIconItemsAdder()
                 : mine.getIcon() != null ? mine.getIcon().name() : "nenhum (usa la verde/vermelha)";
+        MenuConfig cfg = MenuConfig.getInstance();
 
         fillBorder(new ItemStack(Material.PURPLE_STAINED_GLASS_PANE));
 
-        setItem(4, icon(Material.OAK_SIGN, "<gold><bold>Definir Categoria",
-                "<gray>Atual: <white>" + mine.getCategory(), "", "<yellow>Clique para alterar (ex: vip, pvp, ranking)"),
+        setItem(4, cfg.item("items.admin.category", Map.of("category", mine.getCategory())),
                 event -> {
                     if (mineResetMenu != null) {
                         mineResetMenu.promptCategory(player, mine.getId());
                     }
                 });
-        setItem(11, icon(Material.PAPER, "<yellow><bold>Renomear Mina",
-                "<gray>Atual: <white>" + mine.getDisplayName(), "", "<yellow>Clique para definir um nome novo"),
+        setItem(11, cfg.item("items.admin.rename", Map.of("mine", mine.getDisplayName())),
                 event -> {
                     if (mineResetMenu != null) {
                         mineResetMenu.promptRename(player, mine.getId());
                     }
                 });
-        setItem(10, icon(Material.GRASS_BLOCK, "<green><bold>Composicao de Blocos",
-                "<gray>Gerencie os blocos que", "<gray>compoem esta mina.", "", "<yellow>Clique para editar"),
+        setItem(10, cfg.item("items.admin.composition", Map.of()),
                 event -> {
                     player.closeInventory();
                     if (blockCompositionMenu != null) {
                         blockCompositionMenu.open(player, mine.getId());
                     }
                 });
-        setItem(12, icon(Material.ENDER_PEARL, "<aqua><bold>Definir Spawn",
-                "<gray>Define onde o jogador", "<gray>entra nesta mina.", "", "<yellow>Clique para setar spawn no seu pe"),
+        setItem(12, cfg.item("items.admin.spawn", Map.of()),
                 event -> {
                     mine.setSpawn(player.getLocation());
                     mineManager.save();
                     ChatUtil.send(player, "<green>Spawn da mina '" + mine.getId() + "' atualizado.");
                 });
-        setItem(13, icon(Material.EMERALD, "<light_purple><bold>Definir Icone",
-                "<gray>Atual: <white>" + iconName, "", "<yellow>Segure um item na mao e clique",
-                "<yellow>(aceita itens/blocos custom do ItemsAdder)"),
+        setItem(13, cfg.item("items.admin.icon", Map.of("icon", iconName)),
                 event -> {
                     ItemStack held = player.getInventory().getItemInMainHand();
                     if (held.getType().isAir()) {
@@ -124,23 +110,22 @@ public class AdminMainMenuGui extends BaseGui {
                     new AdminMainMenuGui(plugin, player, mineManager, hologramManager,
                             blockCompositionMenu, mineResetMenu, mineRewardsMenu, mine.getId()).open();
                 });
-        setItem(14, icon(Material.CLOCK, "<gold><bold>Configurar Reset",
-                "<gray>Tempo e porcentagem", "<gray>automatica de reset.", "", "<yellow>Clique para configurar"),
+        setItem(14, cfg.item("items.admin.reset", Map.of()),
                 event -> {
                     player.closeInventory();
                     if (mineResetMenu != null) {
                         mineResetMenu.open(player, mine.getId());
                     }
                 });
-        setItem(15, icon(Material.EMERALD_BLOCK, "<green><bold>Recompensas",
-                "<gray>Itens e comandos aleatorios", "<gray>ao quebrar blocos.", "", "<yellow>Clique para editar"),
+        setItem(15, cfg.item("items.admin.rewards", Map.of()),
                 event -> {
                     player.closeInventory();
                     if (mineRewardsMenu != null) {
                         mineRewardsMenu.open(player, mine.getId());
                     }
                 });
-        setItem(16, hologramItem(Material.ARMOR_STAND, hologramName, hologramLore),
+        setItem(16, cfg.item(hologramsEnabled ? "items.admin.hologram" : "items.admin.hologram-offline",
+                Map.of("location", mine.getHologramLocation() != null ? "Definido" : "Nao definido")),
                 event -> {
                     if (!hologramsEnabled) {
                         ChatUtil.send(player, "<red>DecentHolograms nao esta instalado neste servidor.");
@@ -153,8 +138,7 @@ public class AdminMainMenuGui extends BaseGui {
                     ChatUtil.send(player, "<green>Holograma setado em <white>" + loc.getBlockX() + " "
                             + loc.getBlockY() + " " + loc.getBlockZ() + "</white><green>. Use o menu para atualizar.");
                 });
-        setItem(22, icon(Material.BARRIER, "<red><bold>Deletar Mina",
-                "<gray><bold>ATENCAO!</bold> Acao irreversivel.", "", "<red>Shift+Click para confirmar"),
+        setItem(22, cfg.item("items.admin.delete", Map.of()),
                 event -> {
                     if (!event.isShiftClick()) {
                         ChatUtil.send(player, "<yellow>Shift+Click para confirmar a exclusao.");
@@ -166,27 +150,5 @@ public class AdminMainMenuGui extends BaseGui {
                     hologramManager.delete(id);
                     ChatUtil.send(player, "<green>Mina '" + id + "' deletada.");
                 });
-    }
-
-    private static ItemStack icon(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        var meta = item.getItemMeta();
-        meta.displayName(ChatUtil.parse(name));
-        List<Component> loreList = new ArrayList<>();
-        for (String line : lore) {
-            loreList.add(ChatUtil.parse(line));
-        }
-        meta.lore(loreList);
-        item.setItemMeta(meta);
-        return item;
-    }
-
-    private static ItemStack hologramItem(Material material, Component name, List<Component> lore) {
-        ItemStack item = new ItemStack(material);
-        var meta = item.getItemMeta();
-        meta.displayName(name);
-        meta.lore(lore);
-        item.setItemMeta(meta);
-        return item;
     }
 }

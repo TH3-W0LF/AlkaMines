@@ -25,7 +25,10 @@ public final class PlotSquaredHook {
     private static boolean available;
     private static Method plotPlayerFromMethod;
     private static Method getCurrentPlotMethod;
+    private static Method getPlotModificationManagerMethod;
+    private static Method clearPlotMethod;
     private static Method isOwnerMethod;
+    private static Method addMemberMethod;
     private static Method getBottomAbsMethod;
     private static Method getTopAbsMethod;
     private static Method psLocationGetX;
@@ -48,11 +51,15 @@ public final class PlotSquaredHook {
         try {
             Class<?> plotPlayerClass = Class.forName("com.plotsquared.core.player.PlotPlayer");
             Class<?> plotClass = Class.forName("com.plotsquared.core.plot.Plot");
+            Class<?> plotModManagerClass = Class.forName("com.plotsquared.core.plot.PlotModificationManager");
             Class<?> psLocationClass = Class.forName("com.plotsquared.core.location.Location");
 
             plotPlayerFromMethod = plotPlayerClass.getMethod("from", Object.class);
             getCurrentPlotMethod = plotPlayerClass.getMethod("getCurrentPlot");
+            getPlotModificationManagerMethod = plotClass.getMethod("getPlotModificationManager");
+            clearPlotMethod = plotModManagerClass.getMethod("clear", Runnable.class);
             isOwnerMethod = plotClass.getMethod("isOwner", UUID.class);
+            addMemberMethod = plotClass.getMethod("addMember", UUID.class);
             getBottomAbsMethod = plotClass.getMethod("getBottomAbs");
             getTopAbsMethod = plotClass.getMethod("getTopAbs");
             psLocationGetX = psLocationClass.getMethod("getX");
@@ -65,6 +72,57 @@ public final class PlotSquaredHook {
             available = false;
             Bukkit.getLogger().warning("[AlkaMines] PlotSquared presente mas a API v7 nao refletiu "
                     + "(versao diferente?). Mina particular desativada. Motivo: " + t);
+        }
+    }
+
+    /** Regenera o terreno PADRAO da plot em que o jogador esta (igual /plot clear) - usado
+     * ao deletar a mina particular, pra a plot voltar ao estado normal em vez de virar void. */
+    public static boolean clearPlot(Player player) {
+        if (!available) {
+            return false;
+        }
+        try {
+            Object plotPlayer = plotPlayerFromMethod.invoke(null, player);
+            if (plotPlayer == null) {
+                return false;
+            }
+            Object plot = getCurrentPlotMethod.invoke(plotPlayer);
+            if (plot == null) {
+                return false;
+            }
+            Object manager = getPlotModificationManagerMethod.invoke(plot);
+            clearPlotMethod.invoke(manager, (Runnable) null);
+            DebugLogger.log("PlotSquared: plot de %s limpa (regenerando terreno padrao).", player.getName());
+            return true;
+        } catch (Throwable t) {
+            DebugLogger.log("PlotSquared: erro ao limpar plot de %s: %s", player.getName(), t);
+            return false;
+        }
+    }
+
+    /** Adiciona o jogador como MEMBRO da plot em que o dono esta (pra poder usar a mina
+     * compartilhada). Retorna true se funcionou. */
+    public static boolean addMember(Player owner, UUID target) {
+        if (!available) {
+            return false;
+        }
+        try {
+            Object plotPlayer = plotPlayerFromMethod.invoke(null, owner);
+            if (plotPlayer == null) {
+                return false;
+            }
+            Object plot = getCurrentPlotMethod.invoke(plotPlayer);
+            if (plot == null) {
+                return false;
+            }
+            Object result = addMemberMethod.invoke(plot, target);
+            if (result instanceof Boolean bool) {
+                return bool;
+            }
+            return true;
+        } catch (Throwable t) {
+            DebugLogger.log("PlotSquared: erro ao adicionar membro na plot de %s: %s", owner.getName(), t);
+            return false;
         }
     }
 

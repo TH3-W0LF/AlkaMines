@@ -13,6 +13,7 @@ import com.alka.mines.manager.PrivateMineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.model.MineBlock;
 import com.alka.mines.model.MineReward;
+import com.alka.mines.model.MineTemplate;
 import com.alka.mines.model.PrivateMine;
 import com.alka.mines.util.ChatUtil;
 import com.alka.mines.util.DebugLogger;
@@ -92,9 +93,9 @@ public class MineBreakListener implements Listener {
     private final PlayerDataManager playerDataManager;
     private final PickaxeLevelManager levelManager;
     private final PrivateMineManager privateMineManager;
-    private final Optional<AlkaShopHook> shopHook;
-    private final Optional<McMMOHook> mcmmoHook;
-    private final Optional<AdvancedEnchantmentsHook> aeHook;
+    private final Supplier<Optional<AlkaShopHook>> shopHookSupplier;
+    private final Supplier<Optional<McMMOHook>> mcmmoHookSupplier;
+    private final Supplier<Optional<AdvancedEnchantmentsHook>> aeHookSupplier;
     /**
      * Supplier, NAO um Optional fixo - o hook e resolvido de verdade so na PRIMEIRA
      * chamada apos o servidor terminar de habilitar todos os plugins (ver
@@ -110,16 +111,17 @@ public class MineBreakListener implements Listener {
 
     public MineBreakListener(MineManager mineManager, PlayerDataManager playerDataManager,
                               PickaxeLevelManager levelManager, PrivateMineManager privateMineManager,
-                              Optional<AlkaShopHook> shopHook, Optional<McMMOHook> mcmmoHook,
-                              Optional<AdvancedEnchantmentsHook> aeHook,
+                              Supplier<Optional<AlkaShopHook>> shopHookSupplier,
+                              Supplier<Optional<McMMOHook>> mcmmoHookSupplier,
+                              Supplier<Optional<AdvancedEnchantmentsHook>> aeHookSupplier,
                               Supplier<Optional<AlkaDropHook>> dropHookSupplier) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
         this.levelManager = levelManager;
         this.privateMineManager = privateMineManager;
-        this.shopHook = shopHook;
-        this.mcmmoHook = mcmmoHook;
-        this.aeHook = aeHook;
+        this.shopHookSupplier = shopHookSupplier;
+        this.mcmmoHookSupplier = mcmmoHookSupplier;
+        this.aeHookSupplier = aeHookSupplier;
         this.dropHookSupplier = dropHookSupplier;
     }
 
@@ -144,8 +146,19 @@ public class MineBreakListener implements Listener {
         Block block = event.getBlock();
         Mine mine = mineManager.getMineAt(block.getLocation()).orElse(null);
         if (mine == null) {
-            // mina particular: qualquer bloco da plot quebra (protecao e do PlotSquared)
-            if (privateMineManager != null && privateMineManager.getMineAt(block.getLocation()).isPresent()) {
+            // mina particular: a plot INTEIRA e protegida - so blocos da composicao do
+            // template quebram (paredes/decoracao ficam intransponiveis).
+            PrivateMine privateMine = privateMineManager != null
+                    ? privateMineManager.getMineProtectingAt(block.getLocation()).orElse(null) : null;
+            if (privateMine != null) {
+                MineTemplate template = privateMineManager.getTemplate(privateMine.getTemplateId()).orElse(null);
+                boolean breakable = template != null
+                        && template.getCompositionBlock(block.getType()) != null
+                        && privateMineManager.isMinable(block.getType());
+                if (!breakable) {
+                    event.setCancelled(true);
+                    return;
+                }
                 event.setCancelled(true);
                 softCancelledBreaks.add(blockKey(block));
             }
@@ -172,7 +185,8 @@ public class MineBreakListener implements Listener {
         }
 
         Mine mine = mineManager.getMineAt(block.getLocation()).orElse(null);
-        PrivateMine privateMine = mine == null ? privateMineManager.getMineAt(block.getLocation()).orElse(null) : null;
+        PrivateMine privateMine = mine == null
+                ? privateMineManager.getMineProtectingAt(block.getLocation()).orElse(null) : null;
         if (mine == null && privateMine == null) {
             return;
         }
@@ -201,7 +215,7 @@ public class MineBreakListener implements Listener {
 
         // AdvancedEnchantments processa BlockBreakEvent em HIGH - precisa rodar ANTES
         // de cancelarmos o evento em HIGHEST, senao os efeitos/encantamentos dele nunca disparam.
-        aeHook.ifPresent(hook -> hook.processBlockBreak(player, block));
+        aeHookSupplier.get().ifPresent(hook -> hook.processBlockBreak(player, block));
 
         // entrada da composicao que corresponde a este bloco (null se nao configurado) -
         // traz os overrides de %/XP definidos direto no BlockCompositionMenu. Precisa
@@ -240,7 +254,7 @@ public class MineBreakListener implements Listener {
         }
         DebugLogger.log("Break ok: restantes=%d (drops=%d, vendido=%s).",
                 mine != null ? mine.getBlocksRemaining() : privateMine.getBlocksRemaining(), drops.size(),
-                shopHook.isPresent() ? "sim" : "nao");
+                shopHookSupplier.get().isPresent() ? "sim" : "nao");
 
         // Auto-smelt do AlkaDrop (se o jogador tiver ativo) processa o drop ANTES de
         // dar/vender - assim a auto-venda do AlkaShop logo abaixo ja vende pelo preco
@@ -318,7 +332,7 @@ public class MineBreakListener implements Listener {
     }
 
     private void applyXp(Player player, Block block, MineBlock compositionBlock) {
-        mcmmoHook.ifPresent(hook -> hook.addMiningXp(player, block, compositionBlock));
+        mcmmoHookSupplier.get().ifPresent(hook -> hook.addMiningXp(player, block, compositionBlock));
         if (compositionBlock != null && compositionBlock.getNormalXp() > 0) {
             player.giveExp((int) Math.round(compositionBlock.getNormalXp()));
         }
@@ -358,6 +372,7 @@ public class MineBreakListener implements Listener {
                                   Optional<AlkaDropHook> dropHook) {
         Map<String, Double> soldTotals = new LinkedHashMap<>();
         List<ItemStack> toDeliver = new ArrayList<>();
+        Optional<AlkaShopHook> shopHook = shopHookSupplier.get();
 
         for (ItemStack drop : drops) {
             boolean autoSell = shopHook.isPresent() && shopHook.get().isAutoSellActive(player, drop.getType());

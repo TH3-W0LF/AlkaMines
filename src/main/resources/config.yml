@@ -22,6 +22,74 @@ private-mine-limits:
   vip2: 2
   mvp: 3
 
+# ADENDO: margem (em blocos) de cada lado da plot que a mina particular (schematic)
+# respeita ao ser colada. O schematic e centralizado na plot e, se couber, fica com essa
+# margem das paredes. Se o schematic for maior que a plot menos 2x a margem, o plugin
+# mantem a mina dentro da plot sem margem e avisa no debug. Ajustavel no futuro.
+private-mine-margin: 4
+
+# O QUE o jogador pode minerar dentro da mina particular.
+# - whitelist: se preenchida, SO esses blocos sao mineraveis (ex: so minerios).
+#   Vazio = qualquer bloco da composicao do template.
+# - blacklist: blocos que NUNCA sao mineraveis mesmo se estiverem na composicao
+#   (ex: blocos cheios de minerio, paredes de bloco).
+private-mine-mining:
+  whitelist:
+    - GOLD_ORE
+    - DEEPSLATE_GOLD_ORE
+    - DIAMOND_ORE
+    - DEEPSLATE_DIAMOND_ORE
+    - EMERALD_ORE
+    - DEEPSLATE_EMERALD_ORE
+    - LAPIS_ORE
+    - DEEPSLATE_LAPIS_ORE
+    - REDSTONE_ORE
+    - DEEPSLATE_REDSTONE_ORE
+    - IRON_ORE
+    - DEEPSLATE_IRON_ORE
+    - COAL_ORE
+    - DEEPSLATE_COAL_ORE
+    - COPPER_ORE
+    - DEEPSLATE_COPPER_ORE
+    - NETHER_GOLD_ORE
+    - NETHER_QUARTZ_ORE
+    - ANCIENT_DEBRIS
+  blacklist:
+    - GOLD_BLOCK
+    - DIAMOND_BLOCK
+    - EMERALD_BLOCK
+    - LAPIS_BLOCK
+    - REDSTONE_BLOCK
+    - IRON_BLOCK
+    - COAL_BLOCK
+    - COPPER_BLOCK
+    - NETHERITE_BLOCK
+    - QUARTZ_BLOCK
+    - AMETHYST_BLOCK
+
+# Menu da mina particular (/mina particular menu) - tempo de reset e upgrade.
+# Tempos de reset disponiveis por permissao (a chave e usada como permissao; jogador
+# normal so tem o default, cada grupo libera mais opcoes).
+private-mine-reset-times:
+  default: [30]
+  vip: [15, 30, 60]
+  mvp: [5, 10, 15, 30, 60]
+# Custo e moeda do upgrade (expandir). A moeda e qualquer currencyId da AlkaEconomy
+# (ex: coins, escarion). O upgrade expande a mina em private-mine-expand-amount blocos
+# pra cada lado (limitado a plot). O custo ESCALONA com o nivel da mina (nivel 0 = base,
+# 1 = 2x base, etc).
+private-mine-upgrade-cost: 10000
+private-mine-upgrade-currency: coins
+private-mine-expand-amount: 3
+
+# Limite de TAMANHO do upgrade por permissao (half-size = distancia do centro ate a
+# borda da mina em X/Z). 0 = sem limite extra (so a plot). A chave e usada como
+# permissao; o limite final e o MAIOR entre as que o jogador tem.
+private-mine-upgrade-size-limit:
+  default: 0
+  vip: 20
+  mvp: 30
+
 
 # Comandos bloqueados dentro da area de uma mina (o lobbyRegion definido via
 # /alkamines setlobby, ou a propria regiao de mineracao se nenhum lobby foi

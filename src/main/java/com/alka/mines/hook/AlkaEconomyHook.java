@@ -26,14 +26,24 @@ import java.util.logging.Level;
  */
 public final class AlkaEconomyHook {
 
+    private static AlkaEconomyHook instance;
+
+    /** Instancia ativa do hook (se o AlkaEconomy estiver instalado), ou null. */
+    public static AlkaEconomyHook getInstance() {
+        return instance;
+    }
+
     private final Object economyManager;
     private final Method addBalanceMethod;
+    private final Method removeBalanceMethod;
     private final Method getBalanceMethod;
     private final Method formatValueMethod;
 
-    private AlkaEconomyHook(Object economyManager, Method addBalanceMethod, Method getBalanceMethod, Method formatValueMethod) {
+    private AlkaEconomyHook(Object economyManager, Method addBalanceMethod, Method removeBalanceMethod,
+                            Method getBalanceMethod, Method formatValueMethod) {
         this.economyManager = economyManager;
         this.addBalanceMethod = addBalanceMethod;
+        this.removeBalanceMethod = removeBalanceMethod;
         this.getBalanceMethod = getBalanceMethod;
         this.formatValueMethod = formatValueMethod;
     }
@@ -54,11 +64,14 @@ public final class AlkaEconomyHook {
 
             Class<?> economyManagerClass = Class.forName("com.alkacode.economy.EconomyManager");
             Method addBalanceMethod = economyManagerClass.getMethod("addBalance", UUID.class, String.class, double.class);
+            Method removeBalanceMethod = economyManagerClass.getMethod("removeBalance", UUID.class, String.class, double.class);
             Method getBalanceMethod = economyManagerClass.getMethod("getBalance", UUID.class, String.class);
             Method formatValueMethod = economyManagerClass.getMethod("formatValue", double.class);
 
             plugin.getLogger().info("Hook do AlkaEconomy habilitado (COINS + ESCARION).");
-            return Optional.of(new AlkaEconomyHook(economyManager, addBalanceMethod, getBalanceMethod, formatValueMethod));
+            instance = new AlkaEconomyHook(economyManager, addBalanceMethod, removeBalanceMethod,
+                    getBalanceMethod, formatValueMethod);
+            return Optional.of(instance);
         } catch (Throwable e) {
             plugin.getLogger().log(Level.WARNING, "AlkaEconomy encontrado mas a API nao carregou via reflexao.", e);
             return Optional.empty();
@@ -70,6 +83,20 @@ public final class AlkaEconomyHook {
             addBalanceMethod.invoke(economyManager, uuid, currency, amount);
         } catch (Throwable e) {
             Bukkit.getLogger().log(Level.WARNING, "Erro ao depositar via AlkaEconomy.", e);
+        }
+    }
+
+    /** Retira moeda do jogador - retorna true se conseguiu (tem saldo suficiente). */
+    public boolean withdraw(UUID uuid, String currency, double amount) {
+        try {
+            Object result = removeBalanceMethod.invoke(economyManager, uuid, currency, amount);
+            if (result instanceof Boolean bool) {
+                return bool;
+            }
+            return true;
+        } catch (Throwable e) {
+            Bukkit.getLogger().log(Level.WARNING, "Erro ao retirar via AlkaEconomy.", e);
+            return false;
         }
     }
 

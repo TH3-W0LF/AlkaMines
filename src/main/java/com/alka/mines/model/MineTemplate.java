@@ -25,6 +25,10 @@ public class MineTemplate {
     /** Deslocamento vertical do schematic em relacao ao fundo da plot - registrado no
      * /alkamines registrarmina pra o paste colar na MESMA altura em que a mina foi construida. */
     private int pasteYOffset;
+    /** Raridade exibida no /mina particular info (ex: ★★★) - configuravel por template. */
+    private String rarity = "★";
+    /** Expira a mina depois de X dias (0 = eterna). Cash = 0; VIP = duracao do grupo. */
+    private int expiresInDays;
 
     public MineTemplate(String id) {
         this.id = id;
@@ -105,5 +109,21 @@ public class MineTemplate {
 
     public void setPasteYOffset(int pasteYOffset) {
         this.pasteYOffset = pasteYOffset;
+    }
+
+    public String getRarity() {
+        return rarity;
+    }
+
+    public void setRarity(String rarity) {
+        this.rarity = rarity;
+    }
+
+    public int getExpiresInDays() {
+        return expiresInDays;
+    }
+
+    public void setExpiresInDays(int expiresInDays) {
+        this.expiresInDays = expiresInDays;
     }
 }

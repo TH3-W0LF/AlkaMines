@@ -1,5 +1,6 @@
 package com.alka.mines.gui;
 
+import com.alka.mines.config.MenuConfig;
 import com.alka.mines.hook.ItemsAdderHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.manager.PlayerDataManager;
@@ -16,6 +17,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -58,9 +60,10 @@ public class MineListGui extends BaseGui {
     }
 
     private static String title(String category) {
+        MenuConfig cfg = MenuConfig.getInstance();
         return category != null
-                ? "<dark_gray>Minas: " + capitalize(category)
-                : "<dark_gray>Categorias de Minas";
+                ? cfg.title("titles.mine-list", Map.of("category", capitalize(category)))
+                : cfg.title("titles.mine-list-categories", Map.of());
     }
 
     @Override
@@ -80,6 +83,7 @@ public class MineListGui extends BaseGui {
             return;
         }
 
+        MenuConfig cfg = MenuConfig.getInstance();
         int slot = 10;
         for (String cat : categories) {
             if (slot >= 17) {
@@ -87,17 +91,14 @@ public class MineListGui extends BaseGui {
             }
             long count = mineManager.getMines().stream().filter(m -> m.getCategory().equals(cat)).count();
             String target = cat;
-            setItem(slot++, buildIcon(Material.CHEST, "<gold><bold>" + capitalize(cat),
-                    List.of(
-                            ChatUtil.parse("<gray>Minas disponiveis: <white>" + count),
-                            ChatUtil.parse(""),
-                            ChatUtil.parse("<yellow>Clique para ver")
-                    )),
+            setItem(slot++, cfg.item("items.mine-list.category",
+                    Map.of("category", capitalize(cat), "count", String.valueOf(count))),
                     event -> new MineListGui(plugin, player, mineManager, playerDataManager, target).open());
         }
     }
 
     private void renderMines(String targetCategory) {
+        MenuConfig cfg = MenuConfig.getInstance();
         int slot = 10;
         for (Mine mine : mineManager.getMines()) {
             if (targetCategory != null && !mine.getCategory().equals(targetCategory)) {
@@ -108,22 +109,16 @@ public class MineListGui extends BaseGui {
             }
 
             boolean access = canAccess(player, mine);
-            Component name = access
-                    ? ChatUtil.parse("<green><bold>" + mine.getDisplayName())
-                    : ChatUtil.parse("<red><bold>" + mine.getDisplayName());
-
-            List<Component> lore = List.of(
-                    ChatUtil.parse("<gray>Nivel necessario: <white>" + mine.getSettings().getMinPickaxeLevel()),
-                    ChatUtil.parse("<gray>Blocos compostos: <white>" + mine.getComposition().size() + " tipo(s)"),
-                    ChatUtil.parse("<gray>Restantes: <white>" + String.format(Locale.US, "%,d", mine.getBlocksRemaining())),
-                    ChatUtil.parse(""),
-                    access ? ChatUtil.parse("<green>Clique para entrar") : ChatUtil.parse(denyReason(player, mine))
-            );
-
             ItemStack icon = resolveIcon(mine, access);
             ItemMeta iconMeta = icon.getItemMeta();
-            iconMeta.displayName(name);
-            iconMeta.lore(lore);
+            Map<String, String> ph = Map.of(
+                    "mine", mine.getDisplayName(),
+                    "level", String.valueOf(mine.getSettings().getMinPickaxeLevel()),
+                    "composition", String.valueOf(mine.getComposition().size()),
+                    "blocks", String.format(Locale.US, "%,d", mine.getBlocksRemaining()),
+                    "deny", access ? "" : denyReason(player, mine));
+            iconMeta.displayName(ChatUtil.parse(cfg.name(access ? "items.mine-list.mine" : "items.mine-list.mine-denied", ph)));
+            iconMeta.lore(cfg.lore(access ? "items.mine-list.mine" : "items.mine-list.mine-denied", ph));
             icon.setItemMeta(iconMeta);
 
             Mine target = mine;
@@ -140,8 +135,7 @@ public class MineListGui extends BaseGui {
         }
 
         if (targetCategory != null) {
-            setItem(22, buildIcon(Material.ARROW, "<red><bold>Voltar",
-                    List.of(ChatUtil.parse("<gray>Clique para voltar"))),
+            setItem(22, cfg.item("items.mine-list.back", Map.of()),
                     event -> open(plugin, player, mineManager, playerDataManager));
         }
     }

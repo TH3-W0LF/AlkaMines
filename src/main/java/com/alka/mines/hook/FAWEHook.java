@@ -155,10 +155,11 @@ public final class FAWEHook {
             // a selecao inteira se nao houver marcadores) - o admin nao precisa editar yml.
             List<MineBlock> composition = detectComposition(clipboard, marker);
 
-            var format = ClipboardFormats.findByFile(outFile);
+            // findByFile LANCIA NoSuchFileException em arquivo que ainda nao existe
+            // (e chamado antes de criar o de saida) - findByAlias por extensao nao precisa do arquivo.
+            var format = ClipboardFormats.findByAlias("schem");
             if (format == null) {
-                // fallback: pede explicitamente pelo formato FAWE (.schem)
-                format = ClipboardFormats.findByAlias("schem");
+                format = ClipboardFormats.findByFile(outFile);
             }
             if (format == null) {
                 Logger.getLogger("AlkaMines").warning("Nenhum formato de schematic suportado para .schem (FAWE?).");
@@ -236,5 +237,67 @@ public final class FAWEHook {
     /** Resultado do save: sucesso + minY da selecao (alinhamento do paste) + composicao
      * detectada dos blocos do schematic. */
     public record SchematicSaveResult(boolean success, int minY, List<MineBlock> composition) {
+    }
+
+    /** Le so as dimensoes do schematic (.schem) sem colar nada - usado pra centralizar o
+     * paste na plot (o centro do schematic fica no centro da plot). */
+    public static Optional<BlockVector3> getSchematicDimensions(File file) {
+        try (FileInputStream in = new FileInputStream(file)) {
+            var format = ClipboardFormats.findByFile(file);
+            if (format == null) {
+                format = ClipboardFormats.findByAlias("schem");
+            }
+            if (format == null) {
+                return Optional.empty();
+            }
+            try (ClipboardReader reader = format.getReader(in)) {
+                return Optional.of(reader.read().getDimensions());
+            }
+        } catch (Throwable t) {
+            Logger.getLogger("AlkaMines").log(Level.WARNING, "Falha ao ler dimensoes do schematic " + file.getName(), t);
+            return Optional.empty();
+        }
+    }
+
+    /** Salva o estado atual de uma regiao (ex: a plot inteira) como schematic .schem -
+     * backup do estado original da plot antes de colar a mina, pra restaurar no delete. */
+    public static boolean saveRegionToSchematic(File outFile, MineRegion region) {
+        try {
+            World bukkitWorld = Bukkit.getWorld(region.getWorld());
+            if (bukkitWorld == null) {
+                return false;
+            }
+            com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
+            Region weRegion = new CuboidRegion(weWorld,
+                    BlockVector3.at(region.getX1(), region.getY1(), region.getZ1()),
+                    BlockVector3.at(region.getX2(), region.getY2(), region.getZ2()));
+            BlockArrayClipboard clipboard = new BlockArrayClipboard(weRegion);
+            try (EditSession editSession = WorldEdit.getInstance().newEditSessionBuilder()
+                    .world(weWorld)
+                    .limitUnlimited()
+                    .build()) {
+                ForwardExtentCopy copy = new ForwardExtentCopy(
+                        editSession, weRegion, clipboard, weRegion.getMinimumPoint());
+                Operations.complete(copy);
+            }
+
+            // findByFile LANCIA NoSuchFileException em arquivo que ainda nao existe
+            // (e chamado antes de criar o de saida) - findByAlias por extensao nao precisa do arquivo.
+            var format = ClipboardFormats.findByAlias("schem");
+            if (format == null) {
+                format = ClipboardFormats.findByFile(outFile);
+            }
+            if (format == null) {
+                return false;
+            }
+            try (FileOutputStream out = new FileOutputStream(outFile);
+                 ClipboardWriter writer = format.getWriter(out)) {
+                writer.write(clipboard);
+            }
+            return true;
+        } catch (Throwable t) {
+            Logger.getLogger("AlkaMines").log(Level.WARNING, "Falha ao salvar backup da plot", t);
+            return false;
+        }
     }
 }

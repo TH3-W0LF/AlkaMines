@@ -14,6 +14,7 @@ import com.alka.mines.gui.MineRewardsMenu;
 import com.alka.mines.hologram.HologramManager;
 import com.alka.mines.hook.AdvancedEnchantmentsHook;
 import com.alka.mines.hook.AlkaDropHook;
+import com.alka.mines.hook.AlkaEconomyHook;
 import com.alka.mines.hook.AlkaShopHook;
 import com.alka.mines.hook.BossesProHook;
 import com.alka.mines.hook.ItemsAdderHook;
@@ -61,6 +62,7 @@ public final class AlkaMines extends AlkaPlugin {
     @Override
     protected void onPluginEnable() {
         DebugLogger.setEnabled(getConfig().getBoolean("debug", false));
+        com.alka.mines.config.MenuConfig.init(this);
 
         mineManager = new MineManager(this);
         mineManager.load();
@@ -70,6 +72,7 @@ public final class AlkaMines extends AlkaPlugin {
         hologramManager = new HologramManager(this);
         hologramManager.loadAll(mineManager);
         PrivateMineManager privateMineManager = new PrivateMineManager(this);
+        privateMineManager.setHologramManager(hologramManager);
         PlotSquaredHook.tryHook();
         WorldEditHook worldEditHook = new WorldEditHook();
         MineResetService resetService = new MineResetService(this);
@@ -101,24 +104,31 @@ public final class AlkaMines extends AlkaPlugin {
         ItemsAdderHook.tryHook(this);
         BossesProHook.tryHook(this);
 
-        var shopHook = AlkaShopHook.tryHook(this);
-        var mcmmoHook = McMMOHook.tryHook(this);
-        var aeHook = AdvancedEnchantmentsHook.tryHook(this);
-
-        // NAO resolve o AlkaDropHook aqui de forma sincrona - softdepend no
-        // plugin.yml nao garante ordem estrita de enable com muitos plugins no
-        // servidor (bug real 2026-08-09: AlkaMines habilitava ANTES do AlkaDrop
-        // apesar do softdepend, entao a API dele no ServicesManager ainda nao
-        // existia nesse ponto - o hook ficava permanentemente vazio pro resto da
-        // sessao mesmo com os dois plugins presentes e saudaveis). Resolve 1 tick
-        // depois em vez disso, quando TODOS os plugins ja terminaram o proprio
-        // onEnable (o servidor so comeca a rodar tarefas agendadas depois disso).
+        // REGRA: hooks cross-plugin resolvidos via tryHook() dentro de onEnable() so sao
+        // confiaveis se a ordem de enable for garantida - softdepend/depend e dica, nao
+        // garantia, com 37+ plugins no grafo (AlkaMines ja habilitou ANTES do AlkaDrop e
+        // do AlkaEconomy em testes). Por isso TODO hook opcional (AlkaEconomy, AlkaShop,
+        // mcMMO, AdvancedEnchantments, AlkaDrop) e resolvido num task do PROXIMO tick:
+        // tasks agendadas so comecam a rodar depois que o servidor chama onEnable() em
+        // todos os plugins, entao qualquer ServicesManager registration / getPlugin de
+        // outro plugin ja aconteceu nesse ponto, independente da ordem entre os dois.
+        // O MineBreakListener recebe Supplier<Optional<>> que resolve por chamada.
+        AtomicReference<Optional<AlkaEconomyHook>> economyHookRef = new AtomicReference<>(Optional.empty());
+        AtomicReference<Optional<AlkaShopHook>> shopHookRef = new AtomicReference<>(Optional.empty());
+        AtomicReference<Optional<McMMOHook>> mcmmoHookRef = new AtomicReference<>(Optional.empty());
+        AtomicReference<Optional<AdvancedEnchantmentsHook>> aeHookRef = new AtomicReference<>(Optional.empty());
         AtomicReference<Optional<AlkaDropHook>> dropHookRef = new AtomicReference<>(Optional.empty());
-        Bukkit.getScheduler().runTask(this, () -> dropHookRef.set(AlkaDropHook.tryHook(this)));
+        Bukkit.getScheduler().runTask(this, () -> {
+            economyHookRef.set(AlkaEconomyHook.tryHook(this));
+            shopHookRef.set(AlkaShopHook.tryHook(this));
+            mcmmoHookRef.set(McMMOHook.tryHook(this));
+            aeHookRef.set(AdvancedEnchantmentsHook.tryHook(this));
+            dropHookRef.set(AlkaDropHook.tryHook(this));
+        });
 
         getServer().getPluginManager().registerEvents(
                 new MineBreakListener(mineManager, playerDataManager, levelManager, privateMineManager,
-                        shopHook, mcmmoHook, aeHook, dropHookRef::get), this);
+                        shopHookRef::get, mcmmoHookRef::get, aeHookRef::get, dropHookRef::get), this);
 
         AdminCommands adminCommands = new AdminCommands(mineManager, worldEditHook, adminMainMenu, resetService,
                 playerDataManager, hologramManager, privateMineManager);

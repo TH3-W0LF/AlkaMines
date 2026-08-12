@@ -37,6 +37,7 @@ public class HologramManager {
     private final JavaPlugin plugin;
     private final File templateFile;
     private List<String> templateLines;
+    private List<String> privateTemplateLines;
 
     public HologramManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -52,6 +53,7 @@ public class HologramManager {
         if (!templateFile.exists()) {
             YamlConfiguration fresh = new YamlConfiguration();
             fresh.set("template", defaultTemplate());
+            fresh.set("private-template", defaultPrivateTemplate());
             try {
                 fresh.save(templateFile);
             } catch (IOException e) {
@@ -61,6 +63,8 @@ public class HologramManager {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(templateFile);
         List<String> lines = config.getStringList("template");
         templateLines = lines.isEmpty() ? defaultTemplate() : lines;
+        List<String> privateLines = config.getStringList("private-template");
+        privateTemplateLines = privateLines.isEmpty() ? defaultPrivateTemplate() : privateLines;
     }
 
     /** Recarrega o template do disco - chamado se /alkamines reload existir la fora no futuro. */
@@ -74,6 +78,14 @@ public class HologramManager {
                 "&fBlocos restantes: &7%blocks%",
                 "&fRestante: &a%percentage%%",
                 "&fReset em: &7%reset_time%"
+        );
+    }
+
+    private List<String> defaultPrivateTemplate() {
+        return List.of(
+                "&d&l%name%",
+                "&fBlocos restantes: &7%blocks%",
+                "&fReset em: &7%time%"
         );
     }
 
@@ -176,5 +188,54 @@ public class HologramManager {
         long remainingMs = Math.max(0, intervalMinutes * 60_000L - elapsedMs);
         long remainingSec = remainingMs / 1000;
         return String.format("&f%02d&7:&f%02d", remainingSec / 60, remainingSec % 60);
+    }
+
+    // ---------- hologramas de minas particulares ----------
+
+    /** Cria (ou recria) o holograma de status acima de uma mina particular. */
+    public void createPrivate(String mineKey, Location loc, String displayName) {
+        if (!enabled) {
+            return;
+        }
+        String id = privateId(mineKey);
+        if (DHAPI.getHologram(id) != null) {
+            DHAPI.removeHologram(id);
+        }
+        Location top = loc.clone().add(0, 2.0, 0);
+        DHAPI.createHologram(id, top, buildPrivateLines(displayName, 0, "&7--:--"));
+    }
+
+    /** Atualiza as linhas do holograma de uma mina particular. */
+    public void updatePrivate(String mineKey, String displayName, long remaining, String time) {
+        if (!enabled) {
+            return;
+        }
+        Hologram hologram = DHAPI.getHologram(privateId(mineKey));
+        if (hologram != null) {
+            DHAPI.setHologramLines(hologram, buildPrivateLines(displayName, remaining, time));
+        }
+    }
+
+    public void removePrivate(String mineKey) {
+        if (!enabled) {
+            return;
+        }
+        DHAPI.removeHologram(privateId(mineKey));
+    }
+
+    private List<String> buildPrivateLines(String displayName, long remaining, String time) {
+        List<String> lines = new ArrayList<>();
+        String legacyName = ChatUtil.toLegacy(displayName);
+        for (String line : privateTemplateLines) {
+            lines.add(line
+                    .replace("%name%", legacyName)
+                    .replace("%blocks%", String.format(Locale.US, "%,d", remaining))
+                    .replace("%time%", time));
+        }
+        return lines;
+    }
+
+    private String privateId(String mineKey) {
+        return "alkaminas_priv_" + mineKey.replaceAll("[^a-zA-Z0-9_-]", "");
     }
 }

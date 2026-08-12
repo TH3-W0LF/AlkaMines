@@ -1,5 +1,6 @@
 package com.alka.mines.gui;
 
+import com.alka.mines.config.MenuConfig;
 import com.alka.mines.manager.PlayerDataManager;
 import com.alka.mines.manager.PlayerMineData;
 import com.alka.mines.util.ChatUtil;
@@ -54,21 +55,21 @@ public class RankingGui extends BaseGui {
         boolean hasPrevious = page > 0;
         boolean hasNext = top.size() > (page + 1) * PER_PAGE;
 
-        setItem(45, navItem(Material.ARROW, "<yellow><bold>Anterior", "<gray>Pagina " + page),
+        setItem(45, MenuConfig.getInstance().item("items.ranking.nav-previous", Map.of("page", String.valueOf(page))),
                 event -> {
                     if (hasPrevious) {
                         page--;
                         refresh();
                     }
                 });
-        setItem(53, navItem(Material.ARROW, "<yellow><bold>Proxima", "<gray>Pagina " + (page + 2)),
+        setItem(53, MenuConfig.getInstance().item("items.ranking.nav-next", Map.of("page", String.valueOf(page + 2))),
                 event -> {
                     if (hasNext) {
                         page++;
                         refresh();
                     }
                 });
-        setItem(49, navItem(Material.BARRIER, "<red><bold>Fechar", "<gray>Clique para fechar"),
+        setItem(49, MenuConfig.getInstance().item("items.ranking.close", Map.of()),
                 event -> player.closeInventory());
     }
 

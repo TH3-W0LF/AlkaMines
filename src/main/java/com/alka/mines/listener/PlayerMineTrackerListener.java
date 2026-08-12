@@ -71,7 +71,7 @@ public class PlayerMineTrackerListener implements Listener {
         // mina particular: currentMineId = "privado" (placeholder mostra o status via
         // PrivateMineManager; sem MineEnter/Leave por enquanto).
         String newMineId = lobbyMine.map(Mine::getId)
-                .orElseGet(() -> privateMineManager.getMineAt(to).isPresent() ? "privado" : null);
+                .orElseGet(() -> privateMineManager.getMineProtectingAt(to).isPresent() ? "privado" : null);
 
         String oldMineId = data.getCurrentMineId();
         if (!Objects.equals(oldMineId, newMineId)) {

@@ -1,16 +1,18 @@
 package com.alka.mines.gui;
 
+import com.alka.mines.config.MenuConfig;
 import com.alka.mines.hologram.HologramManager;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.model.MineSettings;
 import com.alka.mines.util.ChatUtil;
 import com.alkacode.core.gui.BaseGui;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.Map;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +37,8 @@ public class MineResetGui extends BaseGui {
 
     private static String title(JavaPlugin plugin, MineManager mineManager, String mineId) {
         Mine mine = mineManager.getMine(mineId).orElse(null);
-        return "<dark_gray>Reset: " + (mine != null ? mine.getDisplayName() : mineId);
+        return MenuConfig.getInstance().title("titles.reset",
+                Map.of("mine", mine != null ? mine.getDisplayName() : mineId));
     }
 
     @Override
@@ -47,43 +50,36 @@ public class MineResetGui extends BaseGui {
             return;
         }
         MineSettings settings = mine.getSettings();
+        MenuConfig cfg = MenuConfig.getInstance();
 
         fillBorder(new ItemStack(Material.BLACK_STAINED_GLASS_PANE));
 
-        setItem(10, icon(Material.CLOCK, "<gold><bold>Tempo de Reset",
-                "<gray>Atual: <white>" + settings.getResetIntervalMinutes() + " min",
-                "", "<yellow>Clique para alterar"),
+        setItem(10, cfg.item("items.reset.interval", Map.of("minutes",
+                String.valueOf(settings.getResetIntervalMinutes()))),
                 event -> menu.promptInterval(player, mineId));
-        setItem(11, icon(Material.COMPARATOR, "<aqua><bold>Porcentagem Restante",
-                "<gray>Atual: <white>" + trim(settings.getResetPercentage()) + "%",
-                "", "<yellow>Clique para alterar"),
+        setItem(11, cfg.item("items.reset.percentage", Map.of("percentage",
+                trim(settings.getResetPercentage()))),
                 event -> menu.promptPercentage(player, mineId));
-        setItem(12, icon(Material.TRIPWIRE_HOOK, "<light_purple><bold>Permissao de Entrada",
-                "<gray>Atual: <white>" + (settings.hasPermission() ? settings.getPermission() : "Nenhuma (publica)"),
-                "", "<yellow>Clique para alterar"),
+        setItem(12, cfg.item("items.reset.permission", Map.of("permission",
+                settings.hasPermission() ? settings.getPermission() : "Nenhuma (publica)")),
                 event -> menu.promptPermission(player, mineId));
-        setItem(13, icon(settings.isActionbarEnabled() ? Material.STONE_BUTTON : Material.STICK,
-                "<aqua><bold>ActionBar: " + (settings.isActionbarEnabled() ? "LIGADO" : "desligado"),
-                "<gray>Mostra restantes/% pra quem esta perto.", "", "<yellow>Clique para alternar"),
+        setItem(13, cfg.item("items.reset.actionbar", Map.of("state",
+                settings.isActionbarEnabled() ? "LIGADO" : "desligado")),
                 event -> {
                     settings.setActionbarEnabled(!settings.isActionbarEnabled());
                     mineManager.save();
                     refresh();
                 });
-        setItem(14, icon(Material.LEAD, "<aqua><bold>Raio do ActionBar",
-                "<gray>Atual: <white>" + settings.getActionbarRange() + " blocos",
-                "", "<yellow>Clique para alterar"),
+        setItem(14, cfg.item("items.reset.actionbar-range", Map.of("range",
+                String.valueOf(settings.getActionbarRange()))),
                 event -> menu.promptActionbarRange(player, mineId));
-        setItem(15, icon(Material.OAK_BUTTON, "<gold><bold>Broadcast do Reset",
-                "<gray>Atual: <white>" + settings.getBroadcastMode() + " "
-                        + "(" + broadcastLabel(settings.getBroadcastMode()) + ")",
-                "", "<yellow>Clique para alterar"),
+        setItem(15, cfg.item("items.reset.broadcast", Map.of("mode",
+                settings.getBroadcastMode() + " (" + broadcastLabel(settings.getBroadcastMode()) + ")")),
                 event -> menu.promptBroadcast(player, mineId));
-        setItem(16, icon(Material.COMMAND_BLOCK, "<green><bold>Comandos de Reset",
-                "<gray>Atual: <white>" + settings.getResetCommands().size() + " comando(s)",
-                "<gray>Placeholders: <white>%mine% %display%", "", "<yellow>Clique para gerenciar"),
+        setItem(16, cfg.item("items.reset.commands", Map.of("count",
+                String.valueOf(settings.getResetCommands().size()))),
                 event -> menu.promptResetCommand(player, mineId));
-        setItem(22, icon(Material.ARROW, "<red><bold>Voltar", "<gray>Clique para voltar"),
+        setItem(22, cfg.item("items.back", Map.of()),
                 event -> {
                     player.closeInventory();
                     if (adminMainMenu != null) {
@@ -99,19 +95,6 @@ public class MineResetGui extends BaseGui {
             case -2 -> "silencioso";
             default -> "raio " + mode;
         };
-    }
-
-    private static ItemStack icon(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        var meta = item.getItemMeta();
-        meta.displayName(ChatUtil.parse(name));
-        List<Component> loreList = new ArrayList<>();
-        for (String line : lore) {
-            loreList.add(ChatUtil.parse(line));
-        }
-        meta.lore(loreList);
-        item.setItemMeta(meta);
-        return item;
     }
 
     private static String trim(double value) {
