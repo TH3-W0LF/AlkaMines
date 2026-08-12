@@ -47,9 +47,11 @@ import java.util.logging.Level;
  * Duas formas de definir o volume mineravel:
  * - SEM schematic: preenche as {@link MineTemplate#getHeight()} camadas superiores da plot.
  * - COM schematic (construcao custom): cola o .schem (plugins/AlkaMines/schematics ou
- *   plugins/FastAsyncWorldEdit/schematics) e varre os blocos-marcador
- *   ({@link MineTemplate#getMineMarker()}) dentro dele - o cuboide entre os marcadores
- *   e o volume mineravel; o resto da construcao (paredes, chao, decor) fica intacto.
+ *   plugins/FastAsyncWorldEdit/schematics) e varre os blocos de MINERIO (qualquer Material
+ *   terminado em "_ORE") dentro dele - o bounding box deles e o volume mineravel/a
+ *   composicao (auto-detectada pelas proporcoes de cada minerio); tudo que nao e minerio
+ *   (pedra/decor/paredes) fica intacto PRA SEMPRE, nunca reseta - so as posicoes de
+ *   minerio sao re-sorteadas no reset. Sem marcador manual nenhum.
  *
  * Persistencia em private-mines.yml. Reset por intervalo do template; deletar limpa os
  * blocos da mina (FAWE AIR).
@@ -125,7 +127,6 @@ public class PrivateMineManager {
             template.setIcon(Material.GOLD_BLOCK);
             template.setResetIntervalMinutes(30);
             template.setHeight(40);
-            template.setMineMarker(Material.REDSTONE_BLOCK);
             template.getComposition().add(new MineBlock(Material.STONE, 60));
             template.getComposition().add(new MineBlock(Material.GOLD_ORE, 40));
             templates.put(templateId.toLowerCase(), template);
@@ -141,13 +142,14 @@ public class PrivateMineManager {
         schematicsDir.mkdirs();
         File outFile = new File(schematicsDir, clean + ".schem");
 
-        FAWEHook.SchematicSaveResult result = FAWEHook.saveSelectionToSchematic(player, outFile, template.getMineMarker());
+        FAWEHook.SchematicSaveResult result = FAWEHook.saveSelectionToSchematic(player, outFile);
         if (!result.success()) {
             return "<red>Falha ao salvar o schematic. Voce precisa de uma selecao valida do WorldEdit "
                     + "(//wand -> clique esquerdo/direito nos dois cantos da mina).";
         }
 
-        // composicao detectada automaticamente dos blocos do schematic - sem editar yml.
+        // composicao detectada automaticamente: qualquer bloco de minerio (*_ORE) na
+        // selecao - sem editar yml, sem marcador manual.
         if (!result.composition().isEmpty()) {
             template.setComposition(result.composition());
             StringBuilder summary = new StringBuilder();
@@ -159,8 +161,9 @@ public class PrivateMineManager {
             DebugLogger.log("Composicao detectada do schematic '%s': %d tipo(s) de bloco.",
                     clean, result.composition().size());
         } else {
-            ChatUtil.send(player, "<yellow>Nenhum bloco encontrado na selecao (so ar/marcadores?) - "
-                    + "defina a composicao no yml se precisar.");
+            ChatUtil.send(player, "<yellow>Nenhum bloco de minerio (*_ORE) encontrado na selecao - "
+                    + "a mina nao vai ter nada quebravel. Defina a composicao no yml ou construa "
+                    + "com blocos de minerio de verdade.");
         }
 
         // registra o deslocamento vertical pra o paste colar na MESMA altura em que a mina
@@ -192,7 +195,6 @@ public class PrivateMineManager {
             section.set("icon", t.getIcon() != null ? t.getIcon().name() : "GOLD_BLOCK");
             section.set("reset-interval-minutes", t.getResetIntervalMinutes());
             section.set("schematic", t.getSchematic());
-            section.set("mine-marker", t.getMineMarker().name());
             section.set("height", t.getHeight());
             section.set("paste-y-offset", t.getPasteYOffset());
             section.set("rarity", t.getRarity());
@@ -226,13 +228,16 @@ public class PrivateMineManager {
                     #
                     # SEM schematic: a mina preenche 'height' camadas do CHAO da plot pra cima.
                     #
-                    # COM schematic (construcao custom): construa a mina no chao da plot e rode
+                    # COM schematic (construcao custom): construa a mina de verdade no chao da
+                    # plot (tamanho da plot, com a altura que quiser) e rode
                     #   /alkamines registrarmina <template> <nome>
-                    # com a selecao do //wand na construcao - o plugin salva o schematic e amarra
-                    # aqui sozinho (nao precisa de //copy nem //schem save).
-                    #   - SEM marcadores: a construcao INTEIRA vira a mina.
-                    #   - COM marcadores (2 blocos 'mine-marker' em cantos opostos do volume
-                    #     mineravel): so o cuboide entre eles e minerado - paredes/decor ficam.
+                    # com a selecao do //wand na construcao - o plugin salva o schematic e detecta
+                    # a composicao E o volume mineravel SOZINHO: qualquer bloco de minerio que
+                    # voce colocar (GOLD_ORE, DIAMOND_ORE, EMERALD_ORE, IRON_ORE, LAPIS_ORE,
+                    # REDSTONE_ORE, COAL_ORE, COPPER_ORE, e as variantes DEEPSLATE_*/NETHER_* de
+                    # cada um) vira parte da mina - o bounding box deles e o volume mineravel.
+                    # TUDO que nao e minerio (pedra, decor, paredes) fica intacto PRA SEMPRE -
+                    # so as posicoes de minerio resetam. Sem marcador manual nenhum.
                     # A mina precisa ter o piso no fundo da plot (a colagem alinha por la).
                     #
                     # Depois de editar, rode /alkamines reload.
@@ -242,7 +247,6 @@ public class PrivateMineManager {
                         icon: GOLD_BLOCK
                         reset-interval-minutes: 30
                         height: 40
-                        mine-marker: REDSTONE_BLOCK
                         rarity: "★★★"
                         expires-in-days: 0
                         # schematic: minagold
@@ -254,7 +258,6 @@ public class PrivateMineManager {
                         icon: DIAMOND_BLOCK
                         reset-interval-minutes: 45
                         height: 40
-                        mine-marker: REDSTONE_BLOCK
                         rarity: "★★★★★"
                         expires-in-days: 0
                         # schematic: minadiamante
@@ -282,15 +285,8 @@ public class PrivateMineManager {
             template.setIcon(iconName != null ? Material.matchMaterial(iconName) : Material.GOLD_BLOCK);
             template.setResetIntervalMinutes(section.getInt(id + ".reset-interval-minutes", 30));
             template.setSchematic(section.getString(id + ".schematic"));
-            String markerName = section.getString(id + ".mine-marker");
-            if (markerName != null) {
-                Material marker = Material.matchMaterial(markerName);
-                if (marker != null) {
-                    template.setMineMarker(marker);
-                }
-            }
             template.setHeight(section.getInt(id + ".height", 40));
-            template.setPasteYOffset(section.getInt(id + ".paste-y-offset", 0));
+            template.setPasteYOffset(section.getInt(id + ".paste-y-offset", Integer.MIN_VALUE));
             template.setRarity(section.getString(id + ".rarity", "★"));
             template.setExpiresInDays(section.getInt(id + ".expires-in-days", 0));
 
@@ -470,8 +466,11 @@ public class PrivateMineManager {
                     bounds.minZ(), bounds.maxZ(), schemD, margin);
             // respeita o paste-y-offset salvo no /alkamines registrarmina: cola a mina na
             // MESMA altura em relacao ao fundo da plot em que o admin a construiu. So cai
-            // pro getPlotSurfaceY() (piso da plot) quando nao ha offset registrado.
-            int originY = template.getPasteYOffset() != 0
+            // pro getPlotSurfaceY() (piso da plot) quando nao ha offset registrado. Sentinela
+            // e Integer.MIN_VALUE, NAO 0 - 0 e um offset valido (schematic construido rente
+            // ao fundo da plot), tratar 0 como "nao registrado" jogava essas minas na
+            // superficie da plot em vez do fundo onde foram de fato construidas.
+            int originY = template.getPasteYOffset() != Integer.MIN_VALUE
                     ? bounds.minY() + template.getPasteYOffset()
                     : getPlotSurfaceY(bounds);
             DebugLogger.log("Paste Y (offset=%d): minY da plot=%d -> originY=%d.",
@@ -491,11 +490,19 @@ public class PrivateMineManager {
                             + paste.get().origin().getBlockZ(),
                     paste.get().sizeX(), paste.get().sizeY(), paste.get().sizeZ());
 
-            MarkerScan markerScan = scanMarkers(bounds.world(), paste.get(), template.getMineMarker());
+            // varre o Clipboard em memoria (nao o mundo pos-paste): com fastMode(true) os
+            // blocos colados nao tem garantia de estar visiveis via getBlockAt no exato
+            // instante em que o EditSession fecha - ler do clipboard elimina essa corrida
+            // por completo (causa raiz do antigo "bug surreal"). O volume mineravel e o
+            // bounding box dos blocos de MINERIO (*_ORE) encontrados - sem marcador manual
+            // nenhum. Tudo que nao e minerio (pedra/decor/paredes que o admin construiu)
+            // fica intacto pra sempre: so as posicoes de minerio sao re-sorteadas no reset
+            // (ver fill() / FAWEHook#resetRegionPreserving - a composicao so tem minerio).
+            FAWEHook.OreScanResult oreScan = FAWEHook.scanOreBoundsInClipboard(paste.get().clipboard(), paste.get().origin());
             MineRegion mineRegion;
-            final List<BlockVector3> markerPositions;
-            if (markerScan == null) {
-                // sem marcadores suficientes: a construcao INTEIRA colada vira a mina.
+            if (oreScan == null) {
+                // sem minerio nenhum: a construcao INTEIRA colada vira a mina, mas sem
+                // composicao configurada nada vai ser quebravel ainda - so avisa o dono.
                 mineRegion = new MineRegion(bounds.world(),
                         paste.get().origin().getBlockX(),
                         paste.get().origin().getBlockY(),
@@ -503,57 +510,31 @@ public class PrivateMineManager {
                         paste.get().origin().getBlockX() + paste.get().sizeX() - 1,
                         paste.get().origin().getBlockY() + paste.get().sizeY() - 1,
                         paste.get().origin().getBlockZ() + paste.get().sizeZ() - 1);
-                markerPositions = List.of();
-                syncMsg(player, "<yellow>Sem marcadores (" + template.getMineMarker().name()
-                        + ") suficientes no schematic - a construcao INTEIRA foi definida como mina. "
-                        + "Se quiser manter paredes/decoracao, coloque 2 marcadores nos cantos do volume "
-                        + "mineravel e registre de novo.");
+                syncMsg(player, "<yellow>Nenhum bloco de minerio (*_ORE) encontrado no schematic - "
+                        + "a mina ainda nao tem nada quebravel.");
             } else {
-                mineRegion = markerScan.region();
-                markerPositions = markerScan.positions();
-                DebugLogger.log("Marcadores encontrados: volume mineravel = %d,%d,%d -> %d,%d,%d",
+                mineRegion = new MineRegion(bounds.world(),
+                        oreScan.minX(), oreScan.minY(), oreScan.minZ(),
+                        oreScan.maxX(), oreScan.maxY(), oreScan.maxZ());
+                DebugLogger.log("Minerio encontrado: volume mineravel = %d,%d,%d -> %d,%d,%d (%d bloco(s)).",
                         mineRegion.getX1(), mineRegion.getY1(), mineRegion.getZ1(),
-                        mineRegion.getX2(), mineRegion.getY2(), mineRegion.getZ2());
+                        mineRegion.getX2(), mineRegion.getY2(), mineRegion.getZ2(), oreScan.oreCount());
             }
 
-            final MineRegion region = mineRegion;
-            // Preenche o interior SO SE estiver vazio (shell com marcador). Se o admin
-            // construiu a mina com blocos, a construcao dele e preservada EXATAMENTE como
-            // esta - o plugin NAO adivinha/preenche por cima. (O preenchimento "sempre"
-            // que eu testei sobrescrevia a construcao com uma mistura dos blocos
-            // detectados - bug relatado. So preencher vazio + colar no piso resolve.)
-            World world = Bukkit.getWorld(bounds.world());
-            final boolean fillInterior = world != null && isRegionEmpty(world, region, template.getMineMarker());
-            DebugLogger.log(fillInterior
-                    ? "Interior vazio - preenchendo com a composicao do template."
-                    : "Interior ja construido - construcao preservada como esta.");
-
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                // remove os blocos-marcador na MAIN thread - o AsyncCatcher do Paper bloqueia
-                // setType fora dela (e a task async inteira morreria sem registrar a mina).
-                World bw = Bukkit.getWorld(bounds.world());
-                if (bw != null) {
-                    for (BlockVector3 pos : markerPositions) {
-                        bw.getBlockAt(pos.getBlockX(), pos.getBlockY(), pos.getBlockZ()).setType(Material.AIR);
-                    }
-                }
-
-                PrivateMine mine = new PrivateMine(player.getUniqueId(), bounds.world(),
-                        region.getX1(), region.getY1(), region.getZ1(),
-                        region.getX2(), region.getY2(), region.getZ2(), template.getId());
-                mine.setPlotBounds(bounds.minX(), bounds.minY(), bounds.minZ(),
-                        bounds.maxX(), bounds.maxY(), bounds.maxZ());
-                addIndexed(mine);
-                save();
-                createHologram(mine);
-                if (fillInterior) {
-                    fill(mine, template);
-                }
-                syncMsg(player, "<green>Mina particular ativada! (template '" + template.getId() + "')"
-                        + (fillInterior ? "" : " - sua construcao foi preservada."));
-                DebugLogger.log("Mina particular criada (schematic=%s): owner=%s volume=%d",
-                        template.getSchematic(), player.getName(), mine.volume());
-            });
+            PrivateMine mine = new PrivateMine(player.getUniqueId(), bounds.world(),
+                    mineRegion.getX1(), mineRegion.getY1(), mineRegion.getZ1(),
+                    mineRegion.getX2(), mineRegion.getY2(), mineRegion.getZ2(), template.getId());
+            mine.setPlotBounds(bounds.minX(), bounds.minY(), bounds.minZ(),
+                    bounds.maxX(), bounds.maxY(), bounds.maxZ());
+            addIndexed(mine);
+            save();
+            createHologram(mine);
+            // a construcao do admin e SEMPRE preservada exatamente como esta - o plugin
+            // nunca preenche/randomiza por cima dela na ativacao, so no reset periodico
+            // (e so as posicoes de minerio, nunca a pedra/decor ao redor delas).
+            syncMsg(player, "<green>Mina particular ativada! (template '" + template.getId() + "')");
+            DebugLogger.log("Mina particular criada (schematic=%s): owner=%s volume=%d",
+                    template.getSchematic(), player.getName(), mine.volume());
         });
     }
 
@@ -579,7 +560,9 @@ public class PrivateMineManager {
         if (PlotSquaredHook.clearPlot(player)) {
             return true;
         }
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        // main thread (runTask): o FAWE ja opera async internamente; rodar no pool async
+        // do Bukkit causava race/ghost blocks no cliente (mesmo motivo do resto da classe).
+        Bukkit.getScheduler().runTask(plugin, () -> {
             if (backupFile.exists()) {
                 Location origin = new Location(Bukkit.getWorld(mine.get().getWorldName()),
                         mine.get().getPlotMinX(), mine.get().getPlotMinY(), mine.get().getPlotMinZ());
@@ -628,8 +611,10 @@ public class PrivateMineManager {
         return new File(dir, world + "_" + minX + "_" + minZ + ".schem");
     }
 
-    /** Expande o volume mineravel da mina em `amount` blocos pra cada lado (limitado a plot)
-     * e re-preenche com a composicao do template. Estilo X-PrivateMines. */
+    /** Expande o volume mineravel da mina em `amount` blocos pra cada lado (X/Z apenas -
+     * a altura Y nunca muda), limitado a `private-mine-expand-wall-margin` blocos ANTES da
+     * parede da plot (nunca encosta na borda), e re-preenche a casca nova com a composicao
+     * do template (so minerio - ver [[project-alkamines]]). Estilo X-PrivateMines. */
     public String expand(Player player, int amount) {
         if (amount <= 0) {
             return "<red>Quantidade invalida (use um numero inteiro > 0).";
@@ -643,10 +628,11 @@ public class PrivateMineManager {
             return "<red>Essa mina nao e sua.";
         }
 
-        int newMinX = Math.max(mine.getPlotMinX(), mine.getMinX() - amount);
-        int newMinZ = Math.max(mine.getPlotMinZ(), mine.getMinZ() - amount);
-        int newMaxX = Math.min(mine.getPlotMaxX(), mine.getMaxX() + amount);
-        int newMaxZ = Math.min(mine.getPlotMaxZ(), mine.getMaxZ() + amount);
+        int wallMargin = plugin.getConfig().getInt("private-mine-expand-wall-margin", 2);
+        int newMinX = Math.max(mine.getPlotMinX() + wallMargin, mine.getMinX() - amount);
+        int newMinZ = Math.max(mine.getPlotMinZ() + wallMargin, mine.getMinZ() - amount);
+        int newMaxX = Math.min(mine.getPlotMaxX() - wallMargin, mine.getMaxX() + amount);
+        int newMaxZ = Math.min(mine.getPlotMaxZ() - wallMargin, mine.getMaxZ() + amount);
 
         // limite de tamanho por VIP (half-size) - 0 = sem limite extra (so a plot).
         int sizeLimit = getSizeLimit(player.getUniqueId());
@@ -745,14 +731,6 @@ public class PrivateMineManager {
         }
         List<String> blacklist = plugin.getConfig().getStringList("private-mine-mining.blacklist");
         return !blacklist.contains(material.name());
-    }
-
-    /** true se o bloco esta na borda (face X/Z) do volume mineravel da mina - usado pra
-     * preservar as "paredes" de minas criadas a partir de schematic. */
-    public boolean isOnMineBorder(PrivateMine mine, Block block) {
-        int x = block.getX(), z = block.getZ();
-        return x == mine.getMinX() || x == mine.getMaxX()
-                || z == mine.getMinZ() || z == mine.getMaxZ();
     }
 
     /** Opcoes de tempo de reset que o jogador pode escolher (default + por permissao). */
@@ -1025,65 +1003,10 @@ public class PrivateMineManager {
         }
     }
 
-    /** Varre o cuboide colado procurando os blocos-marcador; o bounding box deles e o
-     * volume mineravel da mina. Null se nao houver 2+ marcadores formando um cuboide.
-     * NAO remove os marcadores aqui (a task e async e o Paper bloqueia setType fora da
-     * main thread) - as posicoes voltam no resultado pra remocao na main thread. */
-    private MarkerScan scanMarkers(String worldName, SchematicPaste paste, Material marker) {
-        World world = Bukkit.getWorld(worldName);
-        if (world == null) {
-            return null;
-        }
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        List<BlockVector3> markerPositions = new ArrayList<>();
-        int bx = paste.origin().getBlockX(), by = paste.origin().getBlockY(), bz = paste.origin().getBlockZ();
-        for (int x = 0; x < paste.sizeX(); x++) {
-            for (int y = 0; y < paste.sizeY(); y++) {
-                for (int z = 0; z < paste.sizeZ(); z++) {
-                    if (world.getBlockAt(bx + x, by + y, bz + z).getType() == marker) {
-                        markerPositions.add(BlockVector3.at(bx + x, by + y, bz + z));
-                        minX = Math.min(minX, bx + x);
-                        minY = Math.min(minY, by + y);
-                        minZ = Math.min(minZ, bz + z);
-                        maxX = Math.max(maxX, bx + x);
-                        maxY = Math.max(maxY, by + y);
-                        maxZ = Math.max(maxZ, bz + z);
-                    }
-                }
-            }
-        }
-        DebugLogger.log("Marcadores: %d bloco(s) %s encontrado(s) no schematic.",
-                markerPositions.size(), marker.name());
-        if (markerPositions.size() < 2) {
-            return null;
-        }
-        return new MarkerScan(new MineRegion(worldName, minX, minY, minZ, maxX, maxY, maxZ), markerPositions);
-    }
-
-    private record MarkerScan(MineRegion region, List<BlockVector3> positions) {
-    }
-
     private void syncMsg(Player player, String message) {
         if (player.isOnline()) {
             Bukkit.getScheduler().runTask(plugin, () -> ChatUtil.send(player, message));
         }
-    }
-
-    /** true se o cuboide so tem ar (desconsiderando os blocos-marcador) - usado pra decidir
-     * se o plugin preenche o interior no ativar ou preserva a construcao do admin. */
-    private boolean isRegionEmpty(World world, MineRegion region, Material marker) {
-        for (int x = region.getX1(); x <= region.getX2(); x++) {
-            for (int y = region.getY1(); y <= region.getY2(); y++) {
-                for (int z = region.getZ1(); z <= region.getZ2(); z++) {
-                    Material type = world.getBlockAt(x, y, z).getType();
-                    if (!type.isAir() && type != marker) {
-                        return false;
-                    }
-                }
-            }
-        }
-        return true;
     }
 
     // ---------- indice espacial ----------

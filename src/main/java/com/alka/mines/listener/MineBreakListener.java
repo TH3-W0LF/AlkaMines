@@ -152,16 +152,15 @@ public class MineBreakListener implements Listener {
                     ? privateMineManager.getMineProtectingAt(block.getLocation()).orElse(null) : null;
             if (privateMine != null) {
                 MineTemplate template = privateMineManager.getTemplate(privateMine.getTemplateId()).orElse(null);
+                // so quebra o que e minerio E esta na composicao do template - qualquer
+                // outro Material (pedra/decor/paredes que o admin construiu) nunca quebra,
+                // isso ja protege a construcao inteira sem precisar de nenhuma regra de
+                // "borda" adicional (o volume mineravel e so o bounding box do minerio
+                // detectado, entao excluir a borda dele excluiria minerio de verdade -
+                // ver [[project-alkamines]]).
                 boolean breakable = template != null
                         && template.getCompositionBlock(block.getType()) != null
                         && privateMineManager.isMinable(block.getType());
-                // mina com schematic (tem paredes): bloco na borda do volume mineravel
-                // (X == minX/maxX ou Z == minZ/maxZ) nao quebra, mesmo que seja da
-                // composicao - preserva as paredes do volume mineravel.
-                if (breakable && template.getSchematic() != null
-                        && privateMineManager.isOnMineBorder(privateMine, block)) {
-                    breakable = false;
-                }
                 if (!breakable) {
                     event.setCancelled(true);
                     return;

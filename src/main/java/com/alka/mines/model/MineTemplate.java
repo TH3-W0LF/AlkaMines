@@ -14,17 +14,18 @@ public class MineTemplate {
     private Material icon;
     private int resetIntervalMinutes = 30;
     private List<MineBlock> composition = new ArrayList<>();
-    /** Schematic .schem (construcao custom da mina) - o volume mineravel e marcado por
-     * dois blocos {@link #getMineMarker()} dentro do schematic; null = preenche a parte
-     * superior da plot com {@link #getHeight()} camadas. */
+    /** Schematic .schem (construcao custom da mina) - o volume mineravel e o bounding box
+     * dos blocos de minerio (qualquer Material terminado em "_ORE") detectados dentro dele;
+     * tudo que nao e minerio (pedra/decor/paredes) fica intacto pra sempre, nunca reseta.
+     * null = preenche a parte superior da plot com {@link #getHeight()} camadas. */
     private String schematic;
-    /** Material usado como marcador do volume mineravel dentro do schematic. */
-    private Material mineMarker = Material.REDSTONE_BLOCK;
     /** Altura (camadas do topo pra baixo) preenchida quando nao ha schematic. */
     private int height = 40;
     /** Deslocamento vertical do schematic em relacao ao fundo da plot - registrado no
-     * /alkamines registrarmina pra o paste colar na MESMA altura em que a mina foi construida. */
-    private int pasteYOffset;
+     * /alkamines registrarmina pra o paste colar na MESMA altura em que a mina foi construida.
+     * Integer.MIN_VALUE = nunca registrado (cai pro getPlotSurfaceY() no paste). NAO usar 0
+     * como sentinela: 0 e um offset legitimo (schematic construido rente ao fundo da plot). */
+    private int pasteYOffset = Integer.MIN_VALUE;
     /** Raridade exibida no /mina particular info (ex: ★★★) - configuravel por template. */
     private String rarity = "★";
     /** Expira a mina depois de X dias (0 = eterna). Cash = 0; VIP = duracao do grupo. */
@@ -85,14 +86,6 @@ public class MineTemplate {
 
     public void setSchematic(String schematic) {
         this.schematic = schematic;
-    }
-
-    public Material getMineMarker() {
-        return mineMarker;
-    }
-
-    public void setMineMarker(Material mineMarker) {
-        this.mineMarker = mineMarker;
     }
 
     public int getHeight() {

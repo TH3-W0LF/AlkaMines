@@ -76,11 +76,13 @@ private-mine-reset-times:
   mvp: [5, 10, 15, 30, 60]
 # Custo e moeda do upgrade (expandir). A moeda e qualquer currencyId da AlkaEconomy
 # (ex: coins, escarion). O upgrade expande a mina em private-mine-expand-amount blocos
-# pra cada lado (limitado a plot). O custo ESCALONA com o nivel da mina (nivel 0 = base,
-# 1 = 2x base, etc).
+# pra cada lado em X/Z (a altura Y nunca muda), sempre parando private-mine-expand-wall-margin
+# blocos ANTES da parede da plot (nunca encosta na borda). O custo ESCALONA com o nivel
+# da mina (nivel 0 = base, 1 = 2x base, etc).
 private-mine-upgrade-cost: 10000
 private-mine-upgrade-currency: coins
 private-mine-expand-amount: 3
+private-mine-expand-wall-margin: 2
 
 # Limite de TAMANHO do upgrade por permissao (half-size = distancia do centro ate a
 # borda da mina em X/Z). 0 = sem limite extra (so a plot). A chave e usada como

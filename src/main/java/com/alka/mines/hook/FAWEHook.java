@@ -37,6 +37,7 @@ import org.bukkit.entity.Player;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -148,10 +149,14 @@ public final class FAWEHook {
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
         DebugLogger.log("FAWE setBlocks: %d blocos em '%s' em %d ms.",
                 mineRegion.getVolume(), mineRegion.getWorld(), elapsedMs);
+        refreshChunks(bukkitWorld, mineRegion.getX1(), mineRegion.getZ1(), mineRegion.getX2(), mineRegion.getZ2());
     }
 
     /** Cola um schematic .schem alinhado ao `origin` (canto minimo do schematic vai pra
-     * origin) e devolve o tamanho colado pra varredura de marcadores. */
+     * origin) e devolve o tamanho colado + o Clipboard lido (pra varredura de marcadores
+     * direto na memoria - ver {@link #scanOreBoundsInClipboard}, NAO ler o mundo depois do
+     * paste: com fastMode(true) os blocos colados nao tem garantia de estar visiveis pro
+     * Bukkit#getBlockAt imediatamente apos o EditSession fechar). */
     public static Optional<SchematicPaste> pasteSchematic(File file, Location origin) {
         if (!file.exists()) {
             return Optional.empty();
@@ -177,8 +182,12 @@ public final class FAWEHook {
                     Operations.complete(operation);
                 }
                 BlockVector3 dimensions = clipboard.getDimensions();
+                if (bukkitWorld != null) {
+                    refreshChunks(bukkitWorld, origin.getBlockX(), origin.getBlockZ(),
+                            origin.getBlockX() + dimensions.getX() - 1, origin.getBlockZ() + dimensions.getZ() - 1);
+                }
                 return Optional.of(new SchematicPaste(origin,
-                        dimensions.getX(), dimensions.getY(), dimensions.getZ()));
+                        dimensions.getX(), dimensions.getY(), dimensions.getZ(), clipboard));
             }
         } catch (Throwable t) {
             Logger.getLogger("AlkaMines").log(Level.WARNING, "Falha ao colar schematic " + file.getName(), t);
@@ -186,14 +195,82 @@ public final class FAWEHook {
         }
     }
 
-    /** Resultado do paste: origem (canto minimo colado) + tamanho do cuboide colado. */
-    public record SchematicPaste(Location origin, int sizeX, int sizeY, int sizeZ) {
+    /** Resultado do paste: origem (canto minimo colado) + tamanho do cuboide colado + o
+     * Clipboard lido (em memoria, continua valido depois do ClipboardReader fechar). */
+    public record SchematicPaste(Location origin, int sizeX, int sizeY, int sizeZ, Clipboard clipboard) {
+    }
+
+    /** true se o BlockType e um minerio - qualquer bloco cujo id termine em "_ore"
+     * (gold_ore, deepslate_gold_ore, diamond_ore, emerald_ore, iron_ore, lapis_ore,
+     * redstone_ore, coal_ore, copper_ore e as variantes deepslate/nether de cada um,
+     * automaticamente). Base de toda a deteccao de volume/composicao das minas
+     * particulares com schematic - ver [[project-alkamines]]. */
+    private static boolean isOreBlockType(com.sk89q.worldedit.world.block.BlockType type) {
+        return type.getId().endsWith("_ore");
+    }
+
+    /** Varre o Clipboard (coordenadas relativas ao proprio origin do schematic) procurando
+     * blocos de minerio (ver {@link #isOreBlockType}) e converte o bounding box deles pra
+     * coordenadas do MUNDO usando o `pasteOrigin` real (onde o schematic foi de fato
+     * colado). Le direto da memoria - ao contrario de ler o mundo apos o paste, nao depende
+     * de os blocos ja estarem visiveis via Bukkit#getBlockAt (fastMode(true) nao garante
+     * isso no exato tick em que o EditSession fecha). Retorna null se nao houver nenhum
+     * bloco de minerio no schematic. */
+    public static OreScanResult scanOreBoundsInClipboard(Clipboard clipboard, Location pasteOrigin) {
+        BlockVector3 min = clipboard.getRegion().getMinimumPoint();
+        BlockVector3 max = clipboard.getRegion().getMaximumPoint();
+        BlockVector3 clipOrigin = clipboard.getOrigin();
+        int pasteX = pasteOrigin.getBlockX(), pasteY = pasteOrigin.getBlockY(), pasteZ = pasteOrigin.getBlockZ();
+
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        int oreCount = 0;
+
+        for (int x = min.getX(); x <= max.getX(); x++) {
+            for (int y = min.getY(); y <= max.getY(); y++) {
+                for (int z = min.getZ(); z <= max.getZ(); z++) {
+                    if (isOreBlockType(clipboard.getBlock(x, y, z).getBlockType())) {
+                        oreCount++;
+                        int wx = pasteX + (x - clipOrigin.getX());
+                        int wy = pasteY + (y - clipOrigin.getY());
+                        int wz = pasteZ + (z - clipOrigin.getZ());
+                        minX = Math.min(minX, wx); minY = Math.min(minY, wy); minZ = Math.min(minZ, wz);
+                        maxX = Math.max(maxX, wx); maxY = Math.max(maxY, wy); maxZ = Math.max(maxZ, wz);
+                    }
+                }
+            }
+        }
+        DebugLogger.log("Minerio (clipboard): %d bloco(s) *_ORE encontrado(s) no schematic.", oreCount);
+        if (oreCount == 0) {
+            return null;
+        }
+        return new OreScanResult(minX, minY, minZ, maxX, maxY, maxZ, oreCount);
+    }
+
+    /** Bounding box (coordenadas do MUNDO) dos blocos de minerio encontrados no schematic -
+     * esse cuboide vira o volume mineravel (PrivateMine) da mina particular. */
+    public record OreScanResult(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int oreCount) {
+    }
+
+    /** Forca o reenvio dos chunks da regiao pros clientes ja carregados - operacoes FAWE em
+     * fastMode(true) podem terminar sem o cliente ver o resultado (ghost blocks/chunk
+     * desatualizado) ate o chunk recarregar sozinho. */
+    private static void refreshChunks(World world, int x1, int z1, int x2, int z2) {
+        int minCx = Math.min(x1, x2) >> 4, maxCx = Math.max(x1, x2) >> 4;
+        int minCz = Math.min(z1, z2) >> 4, maxCz = Math.max(z1, z2) >> 4;
+        for (int cx = minCx; cx <= maxCx; cx++) {
+            for (int cz = minCz; cz <= maxCz; cz++) {
+                if (world.isChunkLoaded(cx, cz)) {
+                    world.refreshChunk(cx, cz);
+                }
+            }
+        }
     }
 
     /** Salva a selecao do WorldEdit do jogador como um schematic .schem (minas particulares:
      * o admin constroi, seleciona com //wand e o plugin guarda a mina sem depender de //copy).
      * Devolve o minY da selecao (alinhamento do paste) e a composicao detectada dos blocos. */
-    public static SchematicSaveResult saveSelectionToSchematic(Player player, File outFile, Material marker) {
+    public static SchematicSaveResult saveSelectionToSchematic(Player player, File outFile) {
         try {
             com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(player.getWorld());
             // get() cria a sessao se ainda nao existir (findByName pode voltar null no Paper).
@@ -210,9 +287,9 @@ public final class FAWEHook {
                 Operations.complete(copy);
             }
 
-            // composicao detectada dos blocos do schematic (interior entre marcadores, ou
-            // a selecao inteira se nao houver marcadores) - o admin nao precisa editar yml.
-            List<MineBlock> composition = detectComposition(clipboard, marker);
+            // composicao detectada automaticamente: qualquer bloco de minerio (*_ORE) na
+            // selecao - o admin nao precisa editar yml, so construir a mina de verdade.
+            List<MineBlock> composition = detectComposition(clipboard);
 
             // findByFile LANCIA NoSuchFileException em arquivo que ainda nao existe
             // (e chamado antes de criar o de saida) - findByAlias por extensao nao precisa do arquivo.
@@ -235,50 +312,21 @@ public final class FAWEHook {
         }
     }
 
-    /** Conta os blocos do schematic dentro do volume mineravel (o cuboide entre os blocos
-     * marcadores, ou a selecao inteira se nao houver marcadores) e monta a composicao com
-     * peso proporcional a quantidade - exclui ar e os marcadores. */
-    private static List<MineBlock> detectComposition(Clipboard clipboard, Material marker) {
-        com.sk89q.worldedit.world.block.BlockType markerType =
-                BukkitAdapter.adapt(marker.createBlockData()).getBlockType();
+    /** Conta os blocos de minerio (ver {@link #isOreBlockType}) no schematic inteiro e monta
+     * a composicao com peso proporcional a quantidade de cada tipo - so minerio entra na
+     * composicao (nunca pedra/decor: eles ficam como paredes fixas, nunca resetam). */
+    private static List<MineBlock> detectComposition(Clipboard clipboard) {
         BlockVector3 min = clipboard.getRegion().getMinimumPoint();
         BlockVector3 max = clipboard.getRegion().getMaximumPoint();
 
-        // 1o passe: acha os marcadores pra definir o box do volume mineravel
-        int mMinX = Integer.MAX_VALUE, mMinY = Integer.MAX_VALUE, mMinZ = Integer.MAX_VALUE;
-        int mMaxX = Integer.MIN_VALUE, mMaxY = Integer.MIN_VALUE, mMaxZ = Integer.MIN_VALUE;
-        int markerCount = 0;
+        Map<String, Long> counts = new java.util.HashMap<>();
         for (int x = min.getX(); x <= max.getX(); x++) {
             for (int y = min.getY(); y <= max.getY(); y++) {
                 for (int z = min.getZ(); z <= max.getZ(); z++) {
-                    if (clipboard.getBlock(x, y, z).getBlockType() == markerType) {
-                        markerCount++;
-                        mMinX = Math.min(mMinX, x); mMinY = Math.min(mMinY, y); mMinZ = Math.min(mMinZ, z);
-                        mMaxX = Math.max(mMaxX, x); mMaxY = Math.max(mMaxY, y); mMaxZ = Math.max(mMaxZ, z);
-                    }
-                }
-            }
-        }
-
-        int boxMinX, boxMinY, boxMinZ, boxMaxX, boxMaxY, boxMaxZ;
-        if (markerCount >= 2) {
-            boxMinX = mMinX; boxMinY = mMinY; boxMinZ = mMinZ;
-            boxMaxX = mMaxX; boxMaxY = mMaxY; boxMaxZ = mMaxZ;
-        } else {
-            boxMinX = min.getX(); boxMinY = min.getY(); boxMinZ = min.getZ();
-            boxMaxX = max.getX(); boxMaxY = max.getY(); boxMaxZ = max.getZ();
-        }
-
-        // 2o passe: conta os blocos (nao-ar, nao-marcador) dentro do box
-        Map<String, Long> counts = new java.util.HashMap<>();
-        for (int x = boxMinX; x <= boxMaxX; x++) {
-            for (int y = boxMinY; y <= boxMaxY; y++) {
-                for (int z = boxMinZ; z <= boxMaxZ; z++) {
                     var type = clipboard.getBlock(x, y, z).getBlockType();
-                    if (type.getId().equals("minecraft:air") || type == markerType) {
-                        continue;
+                    if (isOreBlockType(type)) {
+                        counts.merge(type.getId(), 1L, Long::sum);
                     }
-                    counts.merge(type.getId(), 1L, Long::sum);
                 }
             }
         }
