@@ -15,6 +15,7 @@ import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
 import com.sk89q.worldedit.function.mask.BlockMask;
 import com.sk89q.worldedit.function.mask.Mask;
+import com.sk89q.worldedit.function.mask.MaskIntersection;
 import com.sk89q.worldedit.function.mask.Masks;
 import com.sk89q.worldedit.function.mask.RegionMask;
 import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
@@ -99,6 +100,38 @@ public final class FAWEHook {
         // mascara: tudo FORA da regiao antiga (a casca nova).
         Mask outerMask = Masks.negate(new RegionMask(oldRegion));
         setBlocks(newRegion, buildPattern(composition), outerMask);
+    }
+
+    /**
+     * Igual {@link #resetRegionOuter}, mas preservando a PT1 (paredes/decor do schematic):
+     * dentro da casca nova, so substitui blocos que sao AIR ou da composicao - qualquer
+     * bloco de parede/decor que ja esteja ali (colado junto com o schematic) fica intacto,
+     * a mesma regra do {@link #resetRegionPreserving}. Usado no expand de minas com
+     * schematic - sem isso a casca nova virava um bloco solido de minerio puro, destruindo
+     * qualquer parede/decor da PT1 que caisse dentro da area recem-expandida.
+     */
+    public static void resetRegionOuterPreserving(MineRegion newRegion, int oldMinX, int oldMaxX,
+                                        int oldMinZ, int oldMaxZ, List<MineBlock> composition) {
+        World bukkitWorld = Bukkit.getWorld(newRegion.getWorld());
+        if (bukkitWorld == null) {
+            return;
+        }
+        com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
+        Region oldRegion = new CuboidRegion(weWorld,
+                BlockVector3.at(oldMinX, newRegion.getY1(), oldMinZ),
+                BlockVector3.at(oldMaxX, newRegion.getY2(), oldMaxZ));
+        Mask outerMask = Masks.negate(new RegionMask(oldRegion));
+
+        Set<BaseBlock> states = new HashSet<>();
+        states.add(BukkitAdapter.adapt(Material.AIR.createBlockData()).toBaseBlock());
+        for (MineBlock block : composition) {
+            states.add(BukkitAdapter.adapt(block.getMaterial().createBlockData()).toBaseBlock());
+        }
+        Mask preserveMask = new BlockMask(weWorld, states);
+
+        // casca nova (fora da regiao antiga) E (ar ou composicao) - a intersecao das duas.
+        Mask combined = new MaskIntersection(outerMask, preserveMask);
+        setBlocks(newRegion, buildPattern(composition), combined);
     }
 
     private static RandomPattern buildPattern(List<MineBlock> composition) {

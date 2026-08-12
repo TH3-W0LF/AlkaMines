@@ -30,6 +30,9 @@ public class MineTemplate {
     private String rarity = "★";
     /** Expira a mina depois de X dias (0 = eterna). Cash = 0; VIP = duracao do grupo. */
     private int expiresInDays;
+    /** Quantos blocos o expand/upgrade cresce por lado NESTE template - override do
+     * private-mine-expand-amount global. -1 = usa o global (default do plugin). */
+    private int expandAmount = -1;
 
     public MineTemplate(String id) {
         this.id = id;
@@ -118,5 +121,13 @@ public class MineTemplate {
 
     public void setExpiresInDays(int expiresInDays) {
         this.expiresInDays = expiresInDays;
+    }
+
+    public int getExpandAmount() {
+        return expandAmount;
+    }
+
+    public void setExpandAmount(int expandAmount) {
+        this.expandAmount = expandAmount;
     }
 }

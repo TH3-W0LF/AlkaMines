@@ -67,7 +67,7 @@ public class PrivateMineGui extends BaseGui {
         String costStr = economy != null ? economy.format(cost) : String.valueOf((long) cost);
         String balanceStr = economy != null ? economy.format(economy.getBalance(player.getUniqueId(), currency)) : "?";
         setItem(11, cfg.item("items.private.upgrade", Map.of(
-                "expand", String.valueOf(privateMineManager.getExpandAmount()),
+                "expand", String.valueOf(privateMineManager.getExpandAmount(template)),
                 "level", String.valueOf(mine.getUpgradeLevel()),
                 "cost", costStr,
                 "currency", currency,

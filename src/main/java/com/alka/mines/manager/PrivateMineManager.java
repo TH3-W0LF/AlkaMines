@@ -30,11 +30,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -52,6 +54,17 @@ import java.util.logging.Level;
  *   composicao (auto-detectada pelas proporcoes de cada minerio); tudo que nao e minerio
  *   (pedra/decor/paredes) fica intacto PRA SEMPRE, nunca reseta - so as posicoes de
  *   minerio sao re-sorteadas no reset. Sem marcador manual nenhum.
+ *
+ * Modelo mental PT1/PT2 pra minas com schematic:
+ * - PT1 = a construcao colada (paredes, chao, decor, qualquer bloco que NAO seja da
+ *   composicao do template). E fixa desde a ativacao - nenhuma operacao (reset, expand,
+ *   fill) altera PT1. So e tocada em delete() (limpa tudo, dono desistiu da mina).
+ * - PT2 = o volume mineravel (bounding box do minerio detectado + a casca ganha pelo
+ *   expand). So blocos AIR ou ja listados na composicao do template sao substituidos -
+ *   ver {@link FAWEHook#resetRegionPreserving} (reset) e
+ *   {@link FAWEHook#resetRegionOuterPreserving} (expand). PT2 expande so em X/Z (a altura Y
+ *   nunca muda - ver {@link #expand}), sempre parando private-mine-expand-wall-margin blocos
+ *   antes da parede da plot pra nunca encostar na PT1 externa.
  *
  * Persistencia em private-mines.yml. Reset por intervalo do template; deletar limpa os
  * blocos da mina (FAWE AIR).
@@ -199,6 +212,7 @@ public class PrivateMineManager {
             section.set("paste-y-offset", t.getPasteYOffset());
             section.set("rarity", t.getRarity());
             section.set("expires-in-days", t.getExpiresInDays());
+            section.set("expand-amount", t.getExpandAmount());
             ConfigurationSection comp = section.createSection("composition");
             for (MineBlock block : t.getComposition()) {
                 comp.set(block.getMaterial().name(), block.getWeight());
@@ -240,6 +254,12 @@ public class PrivateMineManager {
                     # so as posicoes de minerio resetam. Sem marcador manual nenhum.
                     # A mina precisa ter o piso no fundo da plot (a colagem alinha por la).
                     #
+                    # expand-amount: quantos blocos esse template cresce por lado a cada
+                    # /expandir ou upgrade pago (-1 = usa o private-mine-expand-amount global
+                    # do config.yml). O expand NUNCA atravessa parede/estrutura de verdade -
+                    # se bater em algo solido antes de completar a quantidade pedida, para
+                    # ali e avisa o jogador (limite atingido).
+                    #
                     # Depois de editar, rode /alkamines reload.
                     templates:
                       gold:
@@ -249,6 +269,7 @@ public class PrivateMineManager {
                         height: 40
                         rarity: "★★★"
                         expires-in-days: 0
+                        expand-amount: -1
                         # schematic: minagold
                         composition:
                           STONE: 60
@@ -260,6 +281,7 @@ public class PrivateMineManager {
                         height: 40
                         rarity: "★★★★★"
                         expires-in-days: 0
+                        expand-amount: -1
                         # schematic: minadiamante
                         composition:
                           STONE: 70
@@ -289,6 +311,7 @@ public class PrivateMineManager {
             template.setPasteYOffset(section.getInt(id + ".paste-y-offset", Integer.MIN_VALUE));
             template.setRarity(section.getString(id + ".rarity", "★"));
             template.setExpiresInDays(section.getInt(id + ".expires-in-days", 0));
+            template.setExpandAmount(section.getInt(id + ".expand-amount", -1));
 
             List<MineBlock> composition = new ArrayList<>();
             ConfigurationSection compSection = section.getConfigurationSection(id + ".composition");
@@ -431,6 +454,7 @@ public class PrivateMineManager {
         Bukkit.getScheduler().runTask(plugin, () -> {
             backupPlot(bounds);
             fill(mine, template);
+            teleportAboveMine(player, mine);
         });
         DebugLogger.log("Mina particular criada (height=%d, do chao): owner=%s plot=%s volume=%d",
                 template.getHeight(), player.getName(), bounds.minX() + "," + bounds.minZ(), mine.volume());
@@ -533,6 +557,7 @@ public class PrivateMineManager {
             // nunca preenche/randomiza por cima dela na ativacao, so no reset periodico
             // (e so as posicoes de minerio, nunca a pedra/decor ao redor delas).
             syncMsg(player, "<green>Mina particular ativada! (template '" + template.getId() + "')");
+            teleportAboveMine(player, mine);
             DebugLogger.log("Mina particular criada (schematic=%s): owner=%s volume=%d",
                     template.getSchematic(), player.getName(), mine.volume());
         });
@@ -558,6 +583,7 @@ public class PrivateMineManager {
         // volta ao estado normal em vez de virar void. Sem PlotSquared, cai pro backup
         // salvo antes da mina; sem backup, limpa com ar.
         if (PlotSquaredHook.clearPlot(player)) {
+            teleportToPlotFloor(player, mine.get());
             return true;
         }
         // main thread (runTask): o FAWE ja opera async internamente; rodar no pool async
@@ -571,6 +597,7 @@ public class PrivateMineManager {
             } else {
                 FAWEHook.clearRegion(plotRegion);
             }
+            teleportToPlotFloor(player, mine.get());
         });
         DebugLogger.log("Mina particular deletada (fallback): owner=%s", player.getName());
         return true;
@@ -611,10 +638,17 @@ public class PrivateMineManager {
         return new File(dir, world + "_" + minX + "_" + minZ + ".schem");
     }
 
-    /** Expande o volume mineravel da mina em `amount` blocos pra cada lado (X/Z apenas -
+    /** Expande o volume mineravel da mina em ate `amount` blocos pra cada lado (X/Z apenas -
      * a altura Y nunca muda), limitado a `private-mine-expand-wall-margin` blocos ANTES da
      * parede da plot (nunca encosta na borda), e re-preenche a casca nova com a composicao
-     * do template (so minerio - ver [[project-alkamines]]). Estilo X-PrivateMines. */
+     * do template (so minerio - ver [[project-alkamines]]). Estilo X-PrivateMines.
+     *
+     * Cada lado (X-, X+, Z-, Z+) para de crescer SOZINHO no primeiro bloco solido que nao
+     * seja AIR nem da composicao do template - ou seja, uma parede/estrutura de verdade
+     * (ex: parede de quartzo da PT1) trava so aquele lado, sem destruir nada e sem "pular"
+     * pro espaco do outro lado da parede. Se pelo menos um lado bater em algo assim, o
+     * jogador recebe um aviso de limite atingido mesmo quando os outros lados conseguiram
+     * crescer normalmente. */
     public String expand(Player player, int amount) {
         if (amount <= 0) {
             return "<red>Quantidade invalida (use um numero inteiro > 0).";
@@ -627,27 +661,74 @@ public class PrivateMineManager {
         if (!mine.getOwner().equals(player.getUniqueId())) {
             return "<red>Essa mina nao e sua.";
         }
+        World world = Bukkit.getWorld(mine.getWorldName());
+        if (world == null) {
+            return "<red>Mundo da mina nao esta carregado.";
+        }
 
         int wallMargin = plugin.getConfig().getInt("private-mine-expand-wall-margin", 2);
-        int newMinX = Math.max(mine.getPlotMinX() + wallMargin, mine.getMinX() - amount);
-        int newMinZ = Math.max(mine.getPlotMinZ() + wallMargin, mine.getMinZ() - amount);
-        int newMaxX = Math.min(mine.getPlotMaxX() - wallMargin, mine.getMaxX() + amount);
-        int newMaxZ = Math.min(mine.getPlotMaxZ() - wallMargin, mine.getMaxZ() + amount);
+        int targetMinX = Math.max(mine.getPlotMinX() + wallMargin, mine.getMinX() - amount);
+        int targetMinZ = Math.max(mine.getPlotMinZ() + wallMargin, mine.getMinZ() - amount);
+        int targetMaxX = Math.min(mine.getPlotMaxX() - wallMargin, mine.getMaxX() + amount);
+        int targetMaxZ = Math.min(mine.getPlotMaxZ() - wallMargin, mine.getMaxZ() + amount);
 
         // limite de tamanho por VIP (half-size) - 0 = sem limite extra (so a plot).
         int sizeLimit = getSizeLimit(player.getUniqueId());
         if (sizeLimit > 0) {
             int centerX = (mine.getPlotMinX() + mine.getPlotMaxX()) / 2;
             int centerZ = (mine.getPlotMinZ() + mine.getPlotMaxZ()) / 2;
-            newMinX = Math.max(newMinX, centerX - sizeLimit);
-            newMaxX = Math.min(newMaxX, centerX + sizeLimit);
-            newMinZ = Math.max(newMinZ, centerZ - sizeLimit);
-            newMaxZ = Math.min(newMaxZ, centerZ + sizeLimit);
+            targetMinX = Math.max(targetMinX, centerX - sizeLimit);
+            targetMaxX = Math.min(targetMaxX, centerX + sizeLimit);
+            targetMinZ = Math.max(targetMinZ, centerZ - sizeLimit);
+            targetMaxZ = Math.min(targetMaxZ, centerZ + sizeLimit);
+        }
+
+        if (targetMinX == mine.getMinX() && targetMaxX == mine.getMaxX()
+                && targetMinZ == mine.getMinZ() && targetMaxZ == mine.getMaxZ()) {
+            return "<red>A mina ja atingiu o limite" + (sizeLimit > 0 ? " do seu grupo." : " da plot.");
+        }
+
+        MineTemplate template = templates.get(mine.getTemplateId());
+        Set<Material> passable = passableMaterials(template);
+        int minY = mine.getMinY(), maxY = mine.getMaxY();
+
+        int newMinX = mine.getMinX();
+        boolean blocked = false;
+        for (int x = mine.getMinX() - 1; x >= targetMinX; x--) {
+            if (!isPlaneClearX(world, x, targetMinZ, targetMaxZ, minY, maxY, passable)) {
+                blocked = true;
+                break;
+            }
+            newMinX = x;
+        }
+        int newMaxX = mine.getMaxX();
+        for (int x = mine.getMaxX() + 1; x <= targetMaxX; x++) {
+            if (!isPlaneClearX(world, x, targetMinZ, targetMaxZ, minY, maxY, passable)) {
+                blocked = true;
+                break;
+            }
+            newMaxX = x;
+        }
+        int newMinZ = mine.getMinZ();
+        for (int z = mine.getMinZ() - 1; z >= targetMinZ; z--) {
+            if (!isPlaneClearZ(world, z, newMinX, newMaxX, minY, maxY, passable)) {
+                blocked = true;
+                break;
+            }
+            newMinZ = z;
+        }
+        int newMaxZ = mine.getMaxZ();
+        for (int z = mine.getMaxZ() + 1; z <= targetMaxZ; z++) {
+            if (!isPlaneClearZ(world, z, newMinX, newMaxX, minY, maxY, passable)) {
+                blocked = true;
+                break;
+            }
+            newMaxZ = z;
         }
 
         if (newMinX == mine.getMinX() && newMaxX == mine.getMaxX()
                 && newMinZ == mine.getMinZ() && newMaxZ == mine.getMaxZ()) {
-            return "<red>A mina ja atingiu o limite" + (sizeLimit > 0 ? " do seu grupo." : " da plot.");
+            return "<red>Limite atingido - tem uma parede/estrutura colada na mina, sem espaco pra expandir.";
         }
 
         int oldMinX = mine.getMinX(), oldMaxX = mine.getMaxX();
@@ -658,7 +739,10 @@ public class PrivateMineManager {
         addIndexed(mine);
         save();
 
-        MineTemplate template = templates.get(mine.getTemplateId());
+        if (blocked) {
+            syncMsg(player, "<yellow>Limite atingido em pelo menos um lado - tem uma parede/estrutura "
+                    + "no caminho, essa direcao nao expande mais.");
+        }
         // main thread (runTask): o FAWE opera async internamente; rodar no pool async do
         // Bukkit causava race/ghost blocks no cliente. So preenche a CASCA nova da
         // expansao - o que ja existia (paredes/minerio) e preservado.
@@ -696,7 +780,8 @@ public class PrivateMineManager {
         }
         // Soh cobra e incrementa DEPOIS de o expand ter sucesso: se expand() retornar
         // erro (mina ja no limite, etc), nada e cobrado nem o nivel avanca.
-        String error = expand(player, getExpandAmount());
+        MineTemplate template = templates.get(mine.getTemplateId());
+        String error = expand(player, getExpandAmount(template));
         if (error != null) {
             return error;
         }
@@ -783,8 +868,14 @@ public class PrivateMineManager {
         return plugin.getConfig().getString("private-mine-upgrade-currency", "coins");
     }
 
-    public int getExpandAmount() {
-        return plugin.getConfig().getInt("private-mine-expand-amount", 3);
+    /** Quantos blocos crescer por lado num expand/upgrade - o template pode sobrescrever
+     * (expand-amount no private-mine-templates.yml), senao cai pro
+     * private-mine-expand-amount global do config.yml (default 1 = cresce de 1 em 1). */
+    public int getExpandAmount(MineTemplate template) {
+        if (template != null && template.getExpandAmount() >= 0) {
+            return template.getExpandAmount();
+        }
+        return plugin.getConfig().getInt("private-mine-expand-amount", 1);
     }
 
     /** Limite de TAMANHO (half-size, dist do centro ate a borda em X/Z) por permissao pro
@@ -918,6 +1009,44 @@ public class PrivateMineManager {
         }
     }
 
+    /** Teleporta o jogador pra cima da mina recem-criada (centro X/Z do volume mineravel,
+     * maxY+1) - chamado na main thread logo apos a ativacao (schematic ou height-fill). */
+    private void teleportAboveMine(Player player, PrivateMine mine) {
+        if (!player.isOnline()) {
+            return;
+        }
+        World world = Bukkit.getWorld(mine.getWorldName());
+        if (world == null) {
+            return;
+        }
+        int centerX = (mine.getMinX() + mine.getMaxX()) / 2;
+        int centerZ = (mine.getMinZ() + mine.getMaxZ()) / 2;
+        player.teleport(new Location(world, centerX + 0.5, mine.getMaxY() + 1.0, centerZ + 0.5));
+    }
+
+    /** Teleporta o jogador pro chao da plot (centro X/Z, primeiro bloco solido de cima pra
+     * baixo +1) - chamado apos deletar a mina, quando o terreno ja foi restaurado (clear do
+     * PlotSquared ou paste do backup/AIR). */
+    private void teleportToPlotFloor(Player player, PrivateMine mine) {
+        if (!player.isOnline()) {
+            return;
+        }
+        World world = Bukkit.getWorld(mine.getWorldName());
+        if (world == null) {
+            return;
+        }
+        int centerX = (mine.getPlotMinX() + mine.getPlotMaxX()) / 2;
+        int centerZ = (mine.getPlotMinZ() + mine.getPlotMaxZ()) / 2;
+        int surfaceY = mine.getPlotMinY();
+        for (int y = mine.getPlotMaxY(); y >= mine.getPlotMinY(); y--) {
+            if (!world.getBlockAt(centerX, y, centerZ).getType().isAir()) {
+                surfaceY = y;
+                break;
+            }
+        }
+        player.teleport(new Location(world, centerX + 0.5, surfaceY + 1.0, centerZ + 0.5));
+    }
+
     private void fill(PrivateMine mine, MineTemplate template) {
         MineRegion region = new MineRegion(mine.getWorldName(),
                 mine.getMinX(), mine.getMinY(), mine.getMinZ(),
@@ -946,23 +1075,74 @@ public class PrivateMineManager {
     }
 
     /** Preenche apenas a "casca" nova da expansao (regiao nova - regiao antiga), sem
-     * tocar no que ja existia dentro da regiao antiga (paredes e minerio). */
+     * tocar no que ja existia dentro da regiao antiga (paredes e minerio).
+     * Minas COM schematic (PT1 fixa) usam a variante preservando: dentro da casca nova,
+     * so AR/minerio sao substituidos - parede/decor do schematic que caia ali fica intacta,
+     * a mesma regra do reset via {@link #fill}. Minas SEM schematic (preenchimento por
+     * altura) nao tem PT1 pra preservar - a casca inteira vira composicao. */
     private void fillExpand(PrivateMine mine, MineTemplate template,
                             int oldMinX, int oldMaxX, int oldMinZ, int oldMaxZ) {
         MineRegion region = new MineRegion(mine.getWorldName(),
                 mine.getMinX(), mine.getMinY(), mine.getMinZ(),
                 mine.getMaxX(), mine.getMaxY(), mine.getMaxZ());
+        List<MineBlock> composition = template.getComposition().isEmpty()
+                ? List.of(new MineBlock(Material.STONE, 1.0))
+                : template.getComposition();
         if (template.getComposition().isEmpty()) {
             DebugLogger.warn("Mina particular '%s': composicao VAZIA no expand - preenchendo a casca com stone.",
                     mine.getTemplateId());
-            FAWEHook.resetRegionOuter(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ,
-                    List.of(new MineBlock(Material.STONE, 1.0)));
+        }
+        if (template.getSchematic() != null) {
+            DebugLogger.log("Expand preservando a PT1 da mina particular '%s' (casca fora de X %d-%d, Z %d-%d).",
+                    mine.getTemplateId(), oldMinX, oldMaxX, oldMinZ, oldMaxZ);
+            FAWEHook.resetRegionOuterPreserving(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ, composition);
             return;
         }
         DebugLogger.log("Expand da mina particular '%s': preenchendo a casca fora de X %d-%d, Z %d-%d.",
                 mine.getTemplateId(), oldMinX, oldMaxX, oldMinZ, oldMaxZ);
-        FAWEHook.resetRegionOuter(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ,
-                template.getComposition());
+        FAWEHook.resetRegionOuter(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ, composition);
+    }
+
+    /** AIR + qualquer Material da composicao do template - usado por {@link #expand} pra
+     * decidir se um bloco no caminho da expansao pode ser atravessado (vira parte da nova
+     * PT2) ou se e uma parede/estrutura de verdade (para o crescimento naquele lado). */
+    private Set<Material> passableMaterials(MineTemplate template) {
+        Set<Material> set = new HashSet<>();
+        set.add(Material.AIR);
+        set.add(Material.CAVE_AIR);
+        set.add(Material.VOID_AIR);
+        if (template != null) {
+            for (MineBlock block : template.getComposition()) {
+                set.add(block.getMaterial());
+            }
+        }
+        return set;
+    }
+
+    /** true se o plano X=fixedX (Z de z1 a z2, Y de y1 a y2 inteiro) so tem blocos passaveis -
+     * usado pelo expand() pra travar o crescimento em X no primeiro bloco solido real. */
+    private boolean isPlaneClearX(World world, int fixedX, int z1, int z2, int y1, int y2, Set<Material> passable) {
+        for (int z = z1; z <= z2; z++) {
+            for (int y = y1; y <= y2; y++) {
+                if (!passable.contains(world.getBlockAt(fixedX, y, z).getType())) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** true se o plano Z=fixedZ (X de x1 a x2, Y de y1 a y2 inteiro) so tem blocos passaveis -
+     * usado pelo expand() pra travar o crescimento em Z no primeiro bloco solido real. */
+    private boolean isPlaneClearZ(World world, int fixedZ, int x1, int x2, int y1, int y2, Set<Material> passable) {
+        for (int x = x1; x <= x2; x++) {
+            for (int y = y1; y <= y2; y++) {
+                if (!passable.contains(world.getBlockAt(x, y, fixedZ).getType())) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     // ---------- schematic ----------
