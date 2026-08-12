@@ -155,6 +155,13 @@ public class MineBreakListener implements Listener {
                 boolean breakable = template != null
                         && template.getCompositionBlock(block.getType()) != null
                         && privateMineManager.isMinable(block.getType());
+                // mina com schematic (tem paredes): bloco na borda do volume mineravel
+                // (X == minX/maxX ou Z == minZ/maxZ) nao quebra, mesmo que seja da
+                // composicao - preserva as paredes do volume mineravel.
+                if (breakable && template.getSchematic() != null
+                        && privateMineManager.isOnMineBorder(privateMine, block)) {
+                    breakable = false;
+                }
                 if (!breakable) {
                     event.setCancelled(true);
                     return;

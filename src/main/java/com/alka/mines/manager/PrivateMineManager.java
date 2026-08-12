@@ -16,6 +16,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -429,8 +430,9 @@ public class PrivateMineManager {
         addIndexed(mine);
         save();
         createHologram(mine);
-        // FAWE async (docs FAWE): preencher na main thread travaria o tick com minas grandes.
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        // main thread (runTask): o FAWE ja opera async internamente; rodar no pool async
+        // do Bukkit causava race/ghost blocks no cliente.
+        Bukkit.getScheduler().runTask(plugin, () -> {
             backupPlot(bounds);
             fill(mine, template);
         });
@@ -448,9 +450,7 @@ public class PrivateMineManager {
         }
         DebugLogger.log("Schematic '%s' encontrado em %s", template.getSchematic(), schematicFile.getPath());
 
-        Location origin = new Location(Bukkit.getWorld(bounds.world()),
-                bounds.minX(), bounds.minY() + template.getPasteYOffset(), bounds.minZ());
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             // 1. backup do estado ORIGINAL da plot (antes da mina) - restaura no delete.
             backupPlot(bounds);
 
@@ -468,10 +468,14 @@ public class PrivateMineManager {
                     bounds.minX(), bounds.maxX(), schemW, margin);
             int originZ = clampCenter((bounds.minZ() + bounds.maxZ()) / 2 - schemD / 2,
                     bounds.minZ(), bounds.maxZ(), schemD, margin);
-            // cola a mina SOBRE O PISO da plot (a superficie), nao no fundo (Y do void) -
-            // senha a mina ficava enterrada abaixo do terreno e invisivel.
-            int originY = getPlotSurfaceY(bounds);
-            DebugLogger.log("Piso da plot detectado em Y=%d - colando a mina sobre ele.", originY);
+            // respeita o paste-y-offset salvo no /alkamines registrarmina: cola a mina na
+            // MESMA altura em relacao ao fundo da plot em que o admin a construiu. So cai
+            // pro getPlotSurfaceY() (piso da plot) quando nao ha offset registrado.
+            int originY = template.getPasteYOffset() != 0
+                    ? bounds.minY() + template.getPasteYOffset()
+                    : getPlotSurfaceY(bounds);
+            DebugLogger.log("Paste Y (offset=%d): minY da plot=%d -> originY=%d.",
+                    template.getPasteYOffset(), bounds.minY(), originY);
             Location centeredOrigin = new Location(Bukkit.getWorld(bounds.world()), originX, originY, originZ);
             DebugLogger.log("Centralizando mina: origem %d,%d,%d tamanho %dx%dx%d margem alvo=%d",
                     originX, originY, originZ, schemW, dimensions.get().getY(), schemD, margin);
@@ -542,13 +546,11 @@ public class PrivateMineManager {
                 addIndexed(mine);
                 save();
                 createHologram(mine);
-                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    if (fillInterior) {
-                        fill(mine, template);
-                    }
-                    syncMsg(player, "<green>Mina particular ativada! (template '" + template.getId() + "')"
-                            + (fillInterior ? "" : " - sua construcao foi preservada."));
-                });
+                if (fillInterior) {
+                    fill(mine, template);
+                }
+                syncMsg(player, "<green>Mina particular ativada! (template '" + template.getId() + "')"
+                        + (fillInterior ? "" : " - sua construcao foi preservada."));
                 DebugLogger.log("Mina particular criada (schematic=%s): owner=%s volume=%d",
                         template.getSchematic(), player.getName(), mine.volume());
             });
@@ -671,9 +673,12 @@ public class PrivateMineManager {
         save();
 
         MineTemplate template = templates.get(mine.getTemplateId());
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        // main thread (runTask): o FAWE opera async internamente; rodar no pool async do
+        // Bukkit causava race/ghost blocks no cliente. So preenche a CASCA nova da
+        // expansao - o que ja existia (paredes/minerio) e preservado.
+        Bukkit.getScheduler().runTask(plugin, () -> {
             if (template != null) {
-                fill(mine, template);
+                fillExpand(mine, template, oldMinX, oldMaxX, oldMinZ, oldMaxZ);
             }
         });
         DebugLogger.log("Mina particular expandida: owner=%s X %d->%d, Z %d->%d",
@@ -703,6 +708,8 @@ public class PrivateMineManager {
             return "<red>Voce precisa de " + economy.format(cost) + " " + currency
                     + " pra expandir (tem " + economy.format(balance) + ").";
         }
+        // Soh cobra e incrementa DEPOIS de o expand ter sucesso: se expand() retornar
+        // erro (mina ja no limite, etc), nada e cobrado nem o nivel avanca.
         String error = expand(player, getExpandAmount());
         if (error != null) {
             return error;
@@ -740,6 +747,14 @@ public class PrivateMineManager {
         return !blacklist.contains(material.name());
     }
 
+    /** true se o bloco esta na borda (face X/Z) do volume mineravel da mina - usado pra
+     * preservar as "paredes" de minas criadas a partir de schematic. */
+    public boolean isOnMineBorder(PrivateMine mine, Block block) {
+        int x = block.getX(), z = block.getZ();
+        return x == mine.getMinX() || x == mine.getMaxX()
+                || z == mine.getMinZ() || z == mine.getMaxZ();
+    }
+
     /** Opcoes de tempo de reset que o jogador pode escolher (default + por permissao). */
     public List<Integer> getResetTimeOptions(UUID owner) {
         LinkedHashSet<Integer> options = new LinkedHashSet<>();
@@ -773,10 +788,16 @@ public class PrivateMineManager {
         return sorted;
     }
 
-    /** Custo base do upgrade, escalando com o nivel da mina (nivel 0 = base, 1 = 2x, etc). */
+    /** Custo base do upgrade, escalando com o nivel da mina.
+     * FOMULA ATIVA (linear): base * (nivel + 1) -> 1o upgrade (nivel 0) custa base, 2o (nivel 1) custa 2x base, etc.
+     * Alternativa exponencial (se quiser que o 1o ja custe o dobro): base * Math.pow(2, nivel).
+     * Troque comentando/descomentando o return abaixo. */
     public double getUpgradeCost(PrivateMine mine) {
         double base = plugin.getConfig().getDouble("private-mine-upgrade-cost", 10000);
+        // FOMULA ATIVA: linear (1o upgrade = base).
         return base * (mine.getUpgradeLevel() + 1);
+        // FOMULA ALTERNATIVA: exponencial (1o upgrade = 2x base).
+        // return base * Math.pow(2, mine.getUpgradeLevel());
     }
 
     /** Moeda do upgrade (qualquer currencyId da AlkaEconomy). */
@@ -878,8 +899,9 @@ public class PrivateMineManager {
                 // teleporta quem esta DENTRO do volume mineravel pro topo (senao o player
                 // morreria sufocado quando o reset preencher a mina).
                 teleportPlayersOut(mine);
-                // FAWE async (docs FAWE) - preencher na main thread travaria o tick.
-                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> fill(mine, template));
+                // main thread (runTask): o FAWE ja opera async internamente; rodar no pool
+                // async do Bukkit causava race/ghost blocks no cliente.
+                Bukkit.getScheduler().runTask(plugin, () -> fill(mine, template));
                 mine.setLastReset(System.currentTimeMillis());
                 mine.setBlocksRemaining((int) Math.min(mine.volume(), Integer.MAX_VALUE));
             }
@@ -930,10 +952,39 @@ public class PrivateMineManager {
             FAWEHook.resetRegion(region, List.of(new MineBlock(Material.STONE, 1.0)));
             return;
         }
+        if (template.getSchematic() != null) {
+            // mina com schematic (tem paredes): so substitui ar + blocos da composicao,
+            // preservando as paredes/decoracao que nao estao na composicao.
+            DebugLogger.log("Reset preservando paredes da mina particular '%s' (%d,%d,%d -> %d,%d,%d).",
+                    mine.getTemplateId(), region.getX1(), region.getY1(), region.getZ1(),
+                    region.getX2(), region.getY2(), region.getZ2());
+            FAWEHook.resetRegionPreserving(region, template.getComposition());
+            return;
+        }
         DebugLogger.log("Preenchendo mina particular '%s' (%d,%d,%d -> %d,%d,%d) com %d bloco(s) de composicao.",
                 mine.getTemplateId(), region.getX1(), region.getY1(), region.getZ1(),
                 region.getX2(), region.getY2(), region.getZ2(), template.getComposition().size());
         FAWEHook.resetRegion(region, template.getComposition());
+    }
+
+    /** Preenche apenas a "casca" nova da expansao (regiao nova - regiao antiga), sem
+     * tocar no que ja existia dentro da regiao antiga (paredes e minerio). */
+    private void fillExpand(PrivateMine mine, MineTemplate template,
+                            int oldMinX, int oldMaxX, int oldMinZ, int oldMaxZ) {
+        MineRegion region = new MineRegion(mine.getWorldName(),
+                mine.getMinX(), mine.getMinY(), mine.getMinZ(),
+                mine.getMaxX(), mine.getMaxY(), mine.getMaxZ());
+        if (template.getComposition().isEmpty()) {
+            DebugLogger.warn("Mina particular '%s': composicao VAZIA no expand - preenchendo a casca com stone.",
+                    mine.getTemplateId());
+            FAWEHook.resetRegionOuter(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ,
+                    List.of(new MineBlock(Material.STONE, 1.0)));
+            return;
+        }
+        DebugLogger.log("Expand da mina particular '%s': preenchendo a casca fora de X %d-%d, Z %d-%d.",
+                mine.getTemplateId(), oldMinX, oldMaxX, oldMinZ, oldMaxZ);
+        FAWEHook.resetRegionOuter(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ,
+                template.getComposition());
     }
 
     // ---------- schematic ----------
