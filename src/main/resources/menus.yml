@@ -1,17 +1,17 @@
 # ============================================================
-#  ALKAMINES - Menus / GUIs / UX
-#  Tudo editavel sem recompilar. Placeholders: {chave}
-#  Formatacao MiniMessage (<red>, <gold>, <rainbow>, etc).
-#  Rode /alkamines reload apos editar.
+# ALKAMINES - Menus / GUIs / UX
+# Tudo editavel sem recompilar. Placeholders: {chave}
+# Formatacao MiniMessage (<color>, <bold>, <gradient>, etc).
+# Rode /alkamines reload apos editar.
 # ============================================================
 
 titles:
-  mine-list-categories: "<dark_gray>Categorias de Minas"
-  mine-list: "<dark_gray>Minas: {category}"
-  admin: "<dark_gray>Mina: {mine}"
-  reset: "<dark_gray>Reset: {mine}"
-  ranking: "<dark_gray>Ranking - Blocos Minerados"
-  private: "<dark_gray>Mina Particular"
+  mine-list-categories: "<dark_gray>◈ <gold>Categorias de Minas <dark_gray>◈"
+  mine-list: "<dark_gray>◈ <gold>Minas: {category} <dark_gray>◈"
+  admin: "<dark_gray>◈ <dark_purple>Gerenciar: {mine} <dark_gray>◈"
+  reset: "<dark_gray>◈ <gold>Reset: {mine} <dark_gray>◈"
+  ranking: "<dark_gray>◈ <yellow>Ranking - Blocos Minerados <dark_gray>◈"
+  private: "<dark_gray>◈ <aqua>Mina Particular <dark_gray>◈"
 
 items:
   # ---------- Menu de minas do jogador (/mina) ----------
@@ -19,223 +19,252 @@ items:
     material: CHEST
     name: "<gold><bold>{category}"
     lore:
-      - "<gray>Minas disponiveis: <white>{count}"
+      - "<gray>Minas disponíveis: <yellow>{count}"
       - ""
-      - "<yellow>Clique para ver"
+      - "<green>▶ Clique para ver"
+
   mine-list.mine:
     material: LIME_WOOL
     name: "<green><bold>{mine}"
     lore:
-      - "<gray>Nivel necessario: <white>{level}"
-      - "<gray>Blocos compostos: <white>{composition} tipo(s)"
-      - "<gray>Restantes: <white>{blocks}"
+      - "<gray>Nível necessário: <yellow>{level}"
+      - "<gray>Blocos compostos: <yellow>{composition} <gray>tipo(s)"
+      - "<gray>Restantes: <yellow>{blocks}"
       - ""
-      - "<green>Clique para entrar"
+      - "<green>▶ Clique para entrar"
+
   mine-list.mine-denied:
     material: RED_WOOL
     name: "<red><bold>{mine}"
     lore:
-      - "<gray>Nivel necessario: <white>{level}"
-      - "<gray>Blocos compostos: <white>{composition} tipo(s)"
-      - "<gray>Restantes: <white>{blocks}"
+      - "<gray>Nível necessário: <yellow>{level}"
+      - "<gray>Blocos compostos: <yellow>{composition} <gray>tipo(s)"
+      - "<gray>Restantes: <yellow>{blocks}"
       - ""
-      - "<red>{deny}"
+      - "<red>✖ {deny}"
+
   mine-list.back:
     material: ARROW
-    name: "<red><bold>Voltar"
+    name: "<red>Voltar"
     lore:
       - "<gray>Clique para voltar"
 
-  # ---------- Menu admin de uma mina (/alkamines editar) ----------
+  # ---------- Menu admin (/alkamines editar) ----------
   admin.category:
     material: OAK_SIGN
-    name: "<gold><bold>Definir Categoria"
+    name: "<yellow><bold>Definir Categoria"
     lore:
-      - "<gray>Atual: <white>{category}"
+      - "<gray>Atual: <aqua>{category}"
       - ""
-      - "<yellow>Clique para alterar (ex: vip, pvp, ranking)"
+      - "<yellow>▶ Clique para alterar"
+      - "<dark_gray>(ex: vip, pvp, ranking)"
+
   admin.rename:
     material: PAPER
-    name: "<yellow><bold>Renomear Mina"
+    name: "<aqua><bold>Renomear Mina"
     lore:
       - "<gray>Atual: <white>{mine}"
       - ""
-      - "<yellow>Clique para definir um nome novo"
+      - "<yellow>▶ Clique para definir um nome novo"
+
   admin.composition:
     material: GRASS_BLOCK
-    name: "<green><bold>Composicao de Blocos"
+    name: "<green><bold>Composição de Blocos"
     lore:
-      - "<gray>Gerencie os blocos que"
-      - "<gray>compõem esta mina."
+      - "<gray>Gerencie os blocos que compõem"
+      - "<gray>esta mina (chances, XP)."
       - ""
-      - "<yellow>Clique para editar"
+      - "<yellow>▶ Clique para editar"
+
   admin.spawn:
     material: ENDER_PEARL
-    name: "<aqua><bold>Definir Spawn"
+    name: "<dark_purple><bold>Definir Spawn"
     lore:
-      - "<gray>Define onde o jogador"
-      - "<gray>entra nesta mina."
+      - "<gray>Define onde o jogador entra"
+      - "<gray>nesta mina."
       - ""
-      - "<yellow>Clique para setar spawn no seu pe"
+      - "<yellow>▶ Clique para setar no seu pé"
+
   admin.icon:
     material: EMERALD
-    name: "<light_purple><bold>Definir Icone"
+    name: "<green><bold>Definir Ícone"
     lore:
       - "<gray>Atual: <white>{icon}"
       - ""
-      - "<yellow>Segure um item na mao e clique"
-      - "<yellow>(aceita itens/blocos custom do ItemsAdder)"
+      - "<yellow>▶ Segure um item na mão e clique"
+      - "<dark_gray>(aceita itens custom do ItemsAdder)"
+
   admin.reset:
     material: CLOCK
     name: "<gold><bold>Configurar Reset"
     lore:
       - "<gray>Tempo e porcentagem"
-      - "<gray>automatica de reset."
+      - "<gray>automática de reset."
       - ""
-      - "<yellow>Clique para configurar"
+      - "<yellow>▶ Clique para configurar"
+
   admin.rewards:
     material: EMERALD_BLOCK
     name: "<green><bold>Recompensas"
     lore:
-      - "<gray>Itens e comandos aleatorios"
+      - "<gray>Itens e comandos aleatórios"
       - "<gray>ao quebrar blocos."
       - ""
-      - "<yellow>Clique para editar"
+      - "<yellow>▶ Clique para editar"
+
   admin.hologram:
     material: ARMOR_STAND
     name: "<aqua><bold>Setar Holograma"
     lore:
       - "<gray>Local: <white>{location}"
       - ""
-      - "<yellow>Clique para spawnar/atualizar"
+      - "<yellow>▶ Clique para spawnar/atualizar"
+
   admin.hologram-offline:
     material: ARMOR_STAND
-    name: "<gray><bold>Holograma Offline"
+    name: "<red><bold>Holograma Offline"
     lore:
-      - "<red>DecentHolograms nao encontrado"
+      - "<gray>DecentHolograms não encontrado"
+
   admin.delete:
     material: BARRIER
     name: "<red><bold>Deletar Mina"
     lore:
-      - "<gray><bold>ATENCAO!</bold> Acao irreversivel."
+      - "<dark_red>ATENÇÃO! Ação irreversível."
       - ""
-      - "<red>Shift+Click para confirmar"
+      - "<red>▶ Shift+Click para confirmar"
 
   # ---------- Menu reset ----------
   reset.interval:
     material: CLOCK
     name: "<gold><bold>Tempo de Reset"
     lore:
-      - "<gray>Atual: <white>{minutes} min"
+      - "<gray>Atual: <yellow>{minutes} min"
       - ""
-      - "<yellow>Clique para alterar"
+      - "<yellow>▶ Clique para alterar"
+
   reset.percentage:
     material: COMPARATOR
     name: "<aqua><bold>Porcentagem Restante"
     lore:
-      - "<gray>Atual: <white>{percentage}%"
+      - "<gray>Atual: <yellow>{percentage}%"
       - ""
-      - "<yellow>Clique para alterar"
+      - "<yellow>▶ Clique para alterar"
+
   reset.permission:
     material: TRIPWIRE_HOOK
-    name: "<light_purple><bold>Permissao de Entrada"
+    name: "<yellow><bold>Permissão de Entrada"
     lore:
       - "<gray>Atual: <white>{permission}"
       - ""
-      - "<yellow>Clique para alterar"
+      - "<yellow>▶ Clique para alterar"
+
   reset.actionbar:
     material: STICK
-    name: "<aqua><bold>ActionBar: {state}"
+    name: "<green><bold>ActionBar: {state}"
     lore:
-      - "<gray>Mostra restantes/% pra quem esta perto."
+      - "<gray>Mostra restantes/% pra quem"
+      - "<gray>está perto da mina."
       - ""
-      - "<yellow>Clique para alternar"
+      - "<yellow>▶ Clique para alternar"
+
   reset.actionbar-range:
     material: LEAD
-    name: "<aqua><bold>Raio do ActionBar"
+    name: "<blue><bold>Raio do ActionBar"
     lore:
-      - "<gray>Atual: <white>{range} blocos"
+      - "<gray>Atual: <yellow>{range} blocos"
       - ""
-      - "<yellow>Clique para alterar"
+      - "<yellow>▶ Clique para alterar"
+
   reset.broadcast:
     material: OAK_BUTTON
     name: "<gold><bold>Broadcast do Reset"
     lore:
-      - "<gray>Atual: <white>{mode}"
+      - "<gray>Atual: <yellow>{mode}"
       - ""
-      - "<yellow>Clique para alterar"
+      - "<yellow>▶ Clique para alterar"
+
   reset.commands:
     material: COMMAND_BLOCK
-    name: "<green><bold>Comandos de Reset"
+    name: "<dark_purple><bold>Comandos de Reset"
     lore:
-      - "<gray>Atual: <white>{count} comando(s)"
+      - "<gray>Atual: <yellow>{count} comando(s)"
       - ""
-      - "<yellow>Clique para gerenciar"
+      - "<yellow>▶ Clique para gerenciar"
+
   back:
     material: ARROW
-    name: "<red><bold>Voltar"
+    name: "<red>Voltar"
     lore:
       - "<gray>Clique para voltar"
 
   # ---------- Ranking ----------
   ranking.nav-previous:
     material: ARROW
-    name: "<yellow><bold>Anterior"
+    name: "<yellow>Anterior"
     lore:
-      - "<gray>Pagina {page}"
+      - "<gray>Página {page}"
+
   ranking.nav-next:
     material: ARROW
-    name: "<yellow><bold>Proxima"
+    name: "<yellow>Próxima"
     lore:
-      - "<gray>Pagina {page}"
+      - "<gray>Página {page}"
+
   ranking.close:
     material: BARRIER
-    name: "<red><bold>Fechar"
+    name: "<red>Fechar"
     lore:
       - "<gray>Clique para fechar"
 
   # ---------- Mina particular (/mina particular menu) ----------
   private.header:
     material: DIAMOND
-    name: "<gold><bold>Mina Particular"
+    name: "<aqua><bold>🏠 Mina Particular"
     lore:
-      - "<gray>Tipo: <white>{type}"
-      - "<gray>Raridade: <yellow>{rarity}"
+      - "<gray>Tipo: <yellow>{type}"
+      - "<gray>Raridade: {rarity}"
+
   private.upgrade:
     material: GOLD_BLOCK
-    name: "<gold><bold>Expandir Mina (+{expand})"
+    name: "<gold><bold>⬆ Expandir Mina (+{expand})"
     lore:
-      - "<gray>Nivel atual: <white>{level}"
-      - "<gray>Custo: <white>{cost} {currency}"
-      - "<gray>Seu saldo: <white>{balance}"
-      - "<gray>Aumenta o volume mineravel"
-      - "<gray>em todas as direcoes (ate a plot)."
+      - "<gray>Nível atual: <yellow>{level}"
+      - "<gray>Custo: <red>{cost} {currency}"
+      - "<gray>Seu saldo: <green>{balance}"
       - ""
-      - "<yellow>Clique pra comprar"
+      - "<gray>Aumenta o volume minerável"
+      - "<gray>em todas as direções."
+      - ""
+      - "<green>▶ Clique para comprar"
+
   private.info:
     material: BOOK
-    name: "<aqua><bold>Informacoes"
+    name: "<white><bold>📘 Informações"
     lore:
       - "<gray>Dono: <white>{owner}"
-      - "<gray>Blocos: <white>{blocks} <dark_gray>({percentage}%)"
+      - "<gray>Blocos: <yellow>{blocks} <gray>(<yellow>{percentage}%<gray>)"
       - "<gray>Fundada: <white>{founded}"
       - "<gray>Expira: <white>{expires}"
+
   private.reset-time:
     material: CLOCK
-    name: "<white><bold>{minutes} min"
+    name: "<yellow>{minutes} min"
     lore:
-      - "<gray>Reset automatico da mina"
+      - "<gray>Reset automático da mina"
       - ""
-      - "<yellow>Clique pra definir"
+      - "<green>▶ Clique para definir"
+
   private.reset-time-current:
     material: CLOCK
-    name: "<aqua><bold>{minutes} min <dark_aqua>(atual)"
+    name: "<green><bold>{minutes} min (atual)"
     lore:
-      - "<gray>Reset automatico da mina"
+      - "<gray>Reset automático da mina"
       - ""
-      - "<yellow>Clique pra definir"
+      - "<green>✓ Atualmente selecionado"
+
   private.close:
     material: BARRIER
-    name: "<red><bold>Fechar"
+    name: "<red>Fechar"
     lore:
-      - "<gray>Clique pra fechar"
+      - "<gray>Clique para fechar"

@@ -63,6 +63,7 @@ public final class AlkaMines extends AlkaPlugin {
     protected void onPluginEnable() {
         DebugLogger.setEnabled(getConfig().getBoolean("debug", false));
         com.alka.mines.config.MenuConfig.init(this);
+        com.alka.mines.config.MessagesConfig.init(this);
 
         mineManager = new MineManager(this);
         mineManager.load();

@@ -1,5 +1,6 @@
 package com.alka.mines.manager;
 
+import com.alka.mines.config.MessagesConfig;
 import com.alka.mines.hook.FAWEHook;
 import com.alka.mines.hook.FAWEHook.SchematicPaste;
 import com.alka.mines.hook.AlkaEconomyHook;
@@ -104,25 +105,11 @@ public class PrivateMineManager {
         return mine.getWorldName() + "_" + mine.getPlotMinX() + "_" + mine.getPlotMinZ();
     }
 
-    private String templateName(PrivateMine mine) {
-        MineTemplate template = templates.get(mine.getTemplateId());
-        return template != null ? template.getDisplayName() : mine.getTemplateId();
-    }
-
     private void refreshHologram(PrivateMine mine) {
         if (hologramManager == null) {
             return;
         }
-        int intervalMinutes = mine.getResetIntervalMinutes() > 0
-                ? mine.getResetIntervalMinutes()
-                : templates.get(mine.getTemplateId()) != null
-                ? templates.get(mine.getTemplateId()).getResetIntervalMinutes() : 0;
-        String time = intervalMinutes > 0
-                ? String.format("%02d:%02d",
-                Math.max(0, intervalMinutes * 60_000L - (System.currentTimeMillis() - mine.getLastReset())) / 1000 / 60,
-                Math.max(0, intervalMinutes * 60_000L - (System.currentTimeMillis() - mine.getLastReset())) / 1000 % 60)
-                : "Manual";
-        hologramManager.updatePrivate(mineKey(mine), templateName(mine), mine.getBlocksRemaining(), time);
+        hologramManager.updatePrivate(mineKey(mine), mine, templates.get(mine.getTemplateId()));
     }
 
     /**
@@ -421,7 +408,7 @@ public class PrivateMineManager {
             return "<red>PlotSquared nao esta instalado.";
         }
         if (getForPlayer(player.getUniqueId()).size() >= getLimit(player.getUniqueId())) {
-            return "<red>Voce ja atingiu o limite de minas particulares do seu grupo.";
+            return MessagesConfig.getInstance().get("private-mine.limit-reached");
         }
         if (template.getComposition().isEmpty()) {
             return "<red>O template '" + template.getId()
@@ -429,7 +416,7 @@ public class PrivateMineManager {
         }
         Location probe = new Location(Bukkit.getWorld(bounds.world()), bounds.minX(), bounds.minY(), bounds.minZ());
         if (hasMineAt(probe)) {
-            return "<red>Ja existe uma mina particular nessa plot.";
+            return MessagesConfig.getInstance().get("private-mine.plot-occupied");
         }
 
         if (template.getSchematic() != null) {
@@ -655,11 +642,11 @@ public class PrivateMineManager {
         }
         Optional<PrivateMine> optional = getMineProtectingAt(player.getLocation());
         if (optional.isEmpty()) {
-            return "<red>Voce nao esta numa mina particular.";
+            return MessagesConfig.getInstance().get("private-mine.not-in-mine");
         }
         PrivateMine mine = optional.get();
         if (!mine.getOwner().equals(player.getUniqueId())) {
-            return "<red>Essa mina nao e sua.";
+            return MessagesConfig.getInstance().get("private-mine.not-owner");
         }
         World world = Bukkit.getWorld(mine.getWorldName());
         if (world == null) {
@@ -761,11 +748,11 @@ public class PrivateMineManager {
     public String expandUpgraded(Player player) {
         Optional<PrivateMine> optional = getMineProtectingAt(player.getLocation());
         if (optional.isEmpty()) {
-            return "<red>Voce nao esta numa mina particular.";
+            return MessagesConfig.getInstance().get("private-mine.not-in-mine");
         }
         PrivateMine mine = optional.get();
         if (!mine.getOwner().equals(player.getUniqueId())) {
-            return "<red>Essa mina nao e sua.";
+            return MessagesConfig.getInstance().get("private-mine.not-owner");
         }
         double cost = getUpgradeCost(mine);
         String currency = getUpgradeCurrency();
@@ -797,11 +784,11 @@ public class PrivateMineManager {
     public String setResetInterval(Player player, int minutes) {
         Optional<PrivateMine> optional = getMineProtectingAt(player.getLocation());
         if (optional.isEmpty()) {
-            return "<red>Voce nao esta numa mina particular.";
+            return MessagesConfig.getInstance().get("private-mine.not-in-mine");
         }
         PrivateMine mine = optional.get();
         if (!mine.getOwner().equals(player.getUniqueId())) {
-            return "<red>Essa mina nao e sua.";
+            return MessagesConfig.getInstance().get("private-mine.not-owner");
         }
         mine.setResetIntervalMinutes(minutes);
         save();
@@ -930,11 +917,11 @@ public class PrivateMineManager {
     public String addMember(Player owner, Player target) {
         Optional<PrivateMine> optional = getMineProtectingAt(owner.getLocation());
         if (optional.isEmpty()) {
-            return "<red>Voce nao esta numa mina particular.";
+            return MessagesConfig.getInstance().get("private-mine.not-in-mine");
         }
         PrivateMine mine = optional.get();
         if (!mine.getOwner().equals(owner.getUniqueId())) {
-            return "<red>Essa mina nao e sua.";
+            return MessagesConfig.getInstance().get("private-mine.not-owner");
         }
         if (!PlotSquaredHook.addMember(owner, target.getUniqueId())) {
             return "<red>Falha ao adicionar " + target.getName() + " a plot (PlotSquared?).";
@@ -983,7 +970,7 @@ public class PrivateMineManager {
     /** Cria o holograma de status acima da mina particular (se o DH estiver presente). */
     private void createHologram(PrivateMine mine) {
         if (hologramManager != null) {
-            hologramManager.createPrivate(mineKey(mine), getHomeLocation(mine), templateName(mine));
+            hologramManager.createPrivate(mineKey(mine), getHomeLocation(mine), mine, templates.get(mine.getTemplateId()));
         }
     }
 

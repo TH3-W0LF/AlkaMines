@@ -24,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -61,7 +62,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 0) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines <criar|deletar|editar|resetar|setspawn|setlobby|removelobby|setsaida|lista|reload|renomear|debug|givegerador|esquematicos|registrarmina>");
+            ChatUtil.sendKey(sender, "error.usage.admin");
             return true;
         }
 
@@ -81,14 +82,14 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             case "givegerador" -> handleGiveGerador(sender, args);
             case "esquematicos" -> handleEsquematicos(sender);
             case "registrarmina" -> handleRegistrarMina(sender, args);
-            default -> ChatUtil.send(sender, "<red>Subcomando desconhecido.");
+            default -> ChatUtil.sendKey(sender, "error.unknown-subcommand");
         }
         return true;
     }
 
     private boolean checkPermission(CommandSender sender, String sub) {
         if (!sender.hasPermission("alkaminas.admin." + sub)) {
-            ChatUtil.send(sender, "<red>Voce nao tem permissao.");
+            ChatUtil.sendKey(sender, "generic.no-permission");
             return false;
         }
         return true;
@@ -115,27 +116,27 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (!(sender instanceof Player player)) {
-            ChatUtil.send(sender, "<red>Apenas jogadores podem usar esse comando.");
+            ChatUtil.sendKey(sender, "generic.player-only");
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines criar <id>");
+            ChatUtil.sendKey(sender, "error.usage.create");
             return;
         }
 
         String id = sanitizeId(args[1]);
         if (id.isEmpty()) {
-            ChatUtil.send(sender, "<red>ID invalido. Use apenas letras, numeros, underscore e hifen.");
+            ChatUtil.sendKey(sender, "error.invalid-id");
             return;
         }
         if (mineManager.getMine(id).isPresent()) {
-            ChatUtil.send(sender, "<red>Ja existe uma mina com o id '" + id + "'.");
+            ChatUtil.sendKey(sender, "error.mine-exists", Map.of("mine", id));
             return;
         }
 
         Optional<MineRegion> selection = worldEditHook.getSelection(player);
         if (selection.isEmpty()) {
-            ChatUtil.send(sender, "<red>Voce precisa de uma selecao valida do WorldEdit (//pos1, //pos2 ou //wand).");
+            ChatUtil.sendKey(sender, "error.no-selection");
             return;
         }
 
@@ -143,14 +144,13 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         if (maxMineSize > 0 && !mineManager.isWithinSizeLimit(selection.get())) {
             long area = (long) (selection.get().getX2() - selection.get().getX1() + 1)
                     * (selection.get().getZ2() - selection.get().getZ1() + 1);
-            ChatUtil.send(sender, "<red>Mina muito grande: <white>" + area + "</white><red> blocos de area (X*Z), "
-                    + "limite configurado de <white>" + maxMineSize + "</white><red>. "
-                    + "Ajuste <white>max-mine-size</white> no config.yml se precisar.");
+            ChatUtil.sendKey(sender, "error.mine-too-large",
+                    Map.of("area", String.valueOf(area), "limit", String.valueOf(maxMineSize)));
             return;
         }
 
         mineManager.createMine(id, selection.get());
-        ChatUtil.send(sender, "<green>Mina '" + id + "' criada com sucesso.");
+        ChatUtil.sendKey(sender, "admin.mine-created", Map.of("mine", id));
     }
 
     private void handleDeletar(CommandSender sender, String[] args) {
@@ -158,16 +158,16 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines deletar <id>");
+            ChatUtil.sendKey(sender, "error.usage.delete");
             return;
         }
 
         String id = sanitizeId(args[1]);
         if (mineManager.deleteMine(id)) {
             hologramManager.delete(id);
-            ChatUtil.send(sender, "<green>Mina '" + id + "' deletada.");
+            ChatUtil.sendKey(sender, "admin.mine-deleted", Map.of("mine", id));
         } else {
-            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            ChatUtil.sendKey(sender, "error.mine-not-found", Map.of("mine", id));
         }
     }
 
@@ -176,11 +176,11 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (!(sender instanceof Player player)) {
-            ChatUtil.send(sender, "<red>Apenas jogadores podem usar esse comando.");
+            ChatUtil.sendKey(sender, "generic.player-only");
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines editar <id>");
+            ChatUtil.sendKey(sender, "error.usage.edit");
             return;
         }
 
@@ -192,19 +192,19 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines resetar <id>");
+            ChatUtil.sendKey(sender, "error.usage.reset");
             return;
         }
 
         String id = sanitizeId(args[1]);
         Mine mine = mineManager.getMine(id).orElse(null);
         if (mine == null) {
-            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            ChatUtil.sendKey(sender, "error.mine-not-found", Map.of("mine", id));
             return;
         }
 
         resetService.reset(mine);
-        ChatUtil.send(sender, "<green>Reset da mina '" + id + "' iniciado.");
+        ChatUtil.sendKey(sender, "admin.reset-started", Map.of("mine", id));
     }
 
     private void handleSetSpawn(CommandSender sender, String[] args) {
@@ -212,24 +212,24 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (!(sender instanceof Player player)) {
-            ChatUtil.send(sender, "<red>Apenas jogadores podem usar esse comando.");
+            ChatUtil.sendKey(sender, "generic.player-only");
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines setspawn <id>");
+            ChatUtil.sendKey(sender, "error.usage.setspawn");
             return;
         }
 
         String id = sanitizeId(args[1]);
         Mine mine = mineManager.getMine(id).orElse(null);
         if (mine == null) {
-            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            ChatUtil.sendKey(sender, "error.mine-not-found", Map.of("mine", id));
             return;
         }
 
         mine.setSpawn(player.getLocation());
         mineManager.save();
-        ChatUtil.send(sender, "<green>Spawn da mina '" + id + "' atualizado para sua posicao atual.");
+        ChatUtil.sendKey(sender, "admin.spawn-set", Map.of("mine", id));
     }
 
     private void handleSetLobby(CommandSender sender, String[] args) {
@@ -237,32 +237,32 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (!(sender instanceof Player player)) {
-            ChatUtil.send(sender, "<red>Apenas jogadores podem usar esse comando.");
+            ChatUtil.sendKey(sender, "generic.player-only");
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines setlobby <id>");
+            ChatUtil.sendKey(sender, "error.usage.setlobby");
             return;
         }
 
         String id = sanitizeId(args[1]);
         Mine mine = mineManager.getMine(id).orElse(null);
         if (mine == null) {
-            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            ChatUtil.sendKey(sender, "error.mine-not-found", Map.of("mine", id));
             return;
         }
 
         Optional<MineRegion> selection = worldEditHook.getSelection(player);
         if (selection.isEmpty()) {
-            ChatUtil.send(sender, "<red>Voce precisa de uma selecao valida do WorldEdit (//pos1, //pos2 ou //wand).");
+            ChatUtil.sendKey(sender, "error.no-selection");
             return;
         }
 
         mine.setLobbyRegion(selection.get());
         mineManager.reindexMine(mine);
         mineManager.save();
-        ChatUtil.send(sender, "<green>Area da mina '" + id + "' (lobby/dungeon) definida.");
-        ChatUtil.send(sender, "<gray>A regiao de mineracao continua sendo a original - o lobby so vale pra tracking/placeholder e protecao de comando.");
+        ChatUtil.sendKey(sender, "admin.lobby-set", Map.of("mine", id));
+        ChatUtil.sendKey(sender, "admin.lobby-info");
     }
 
     private void handleRemoveLobby(CommandSender sender, String[] args) {
@@ -270,21 +270,21 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines removelobby <id>");
+            ChatUtil.sendKey(sender, "error.usage.removelobby");
             return;
         }
 
         String id = sanitizeId(args[1]);
         Mine mine = mineManager.getMine(id).orElse(null);
         if (mine == null) {
-            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            ChatUtil.sendKey(sender, "error.mine-not-found", Map.of("mine", id));
             return;
         }
 
         mine.setLobbyRegion(null);
         mineManager.reindexMine(mine);
         mineManager.save();
-        ChatUtil.send(sender, "<green>Area da mina '" + id + "' removida - agora so a regiao de mineracao conta.");
+        ChatUtil.sendKey(sender, "admin.lobby-removed", Map.of("mine", id));
     }
 
     private void handleSetSaida(CommandSender sender) {
@@ -292,12 +292,12 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (!(sender instanceof Player player)) {
-            ChatUtil.send(sender, "<red>Apenas jogadores podem usar esse comando.");
+            ChatUtil.sendKey(sender, "generic.player-only");
             return;
         }
 
         playerDataManager.setExitLocation(player.getLocation());
-        ChatUtil.send(sender, "<green>Saida global atualizada para sua posicao atual.");
+        ChatUtil.sendKey(sender, "admin.exit-set");
     }
 
     private void handleLista(CommandSender sender) {
@@ -307,14 +307,15 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
 
         Collection<Mine> mines = mineManager.getMines();
         if (mines.isEmpty()) {
-            ChatUtil.send(sender, "<yellow>Nenhuma mina criada ainda.");
+            ChatUtil.sendKey(sender, "admin.no-mines");
             return;
         }
 
-        ChatUtil.send(sender, "<gold>Minas (" + mines.size() + "):");
+        ChatUtil.sendKey(sender, "admin.mine-list.header", Map.of("count", String.valueOf(mines.size())));
         for (Mine mine : mines) {
             String lobbyTag = mine.getLobbyRegion() != null ? " <light_purple>[lobby]" : "";
-            ChatUtil.send(sender, "<gray>- <white>" + mine.getId() + " <gray>(" + mine.getBlocksRemaining() + " blocos restantes)" + lobbyTag);
+            ChatUtil.sendKey(sender, "admin.mine-list.entry", Map.of(
+                    "mine", mine.getId(), "blocks", String.valueOf(mine.getBlocksRemaining()), "lobby", lobbyTag));
         }
     }
 
@@ -334,7 +335,10 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         mineManager.save();
         mineManager.load();
         privateMineManager.reload();
-        ChatUtil.send(sender, "<green>Configuracao do AlkaMines (mines.yml + private-mine-templates.yml) recarregada.");
+        com.alka.mines.config.MessagesConfig.getInstance().reload();
+        com.alka.mines.config.MenuConfig.getInstance().reload();
+        hologramManager.reloadTemplate();
+        ChatUtil.sendKey(sender, "admin.reloaded");
     }
 
     private void handleRenomear(CommandSender sender, String[] args) {
@@ -342,14 +346,14 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 3) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines renomear <id> <nome...>");
+            ChatUtil.sendKey(sender, "error.usage.rename");
             return;
         }
 
         String id = sanitizeId(args[1]);
         Mine mine = mineManager.getMine(id).orElse(null);
         if (mine == null) {
-            ChatUtil.send(sender, "<red>Mina nao encontrada: " + id);
+            ChatUtil.sendKey(sender, "error.mine-not-found", Map.of("mine", id));
             return;
         }
 
@@ -357,7 +361,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         mine.setDisplayName(name);
         mineManager.save();
         hologramManager.updateHologram(mine);
-        ChatUtil.send(sender, "<green>Mina '" + id + "' renomeada para '" + name + "'.");
+        ChatUtil.sendKey(sender, "admin.renamed", Map.of("mine", id, "name", name));
     }
 
     /** Liga/desliga o log de debug no console ([AlkaMines-DEBUG]) - nao precisa de reload,
@@ -368,9 +372,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
         }
         boolean nowEnabled = !DebugLogger.isEnabled();
         DebugLogger.setEnabled(nowEnabled);
-        ChatUtil.send(sender, nowEnabled
-                ? "<green>Debug do AlkaMines <white>LIGADO</white><green> - logs no console ([AlkaMines-DEBUG])."
-                : "<red>Debug do AlkaMines <white>DESLIGADO</white><red>.");
+        ChatUtil.sendKey(sender, nowEnabled ? "admin.debug-on" : "admin.debug-off");
     }
 
     /** /alkamines givegerador <jogador> <template> - da o item gerador de mina particular. */
@@ -379,22 +381,22 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 3) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines givegerador <jogador> <template>");
+            ChatUtil.sendKey(sender, "error.usage.give-generator");
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null || !target.isOnline()) {
-            ChatUtil.send(sender, "<red>Jogador offline: " + args[1]);
+            ChatUtil.sendKey(sender, "generic.player-offline", Map.of("player", args[1]));
             return;
         }
         Optional<MineTemplate> template = privateMineManager.getTemplate(args[2]);
         if (template.isEmpty()) {
-            ChatUtil.send(sender, "<red>Template de mina particular nao encontrado: " + args[2]);
+            ChatUtil.sendKey(sender, "error.template-not-found", Map.of("template", args[2]));
             return;
         }
         target.getInventory().addItem(privateMineManager.createGeneratorItem(template.get()));
-        ChatUtil.send(sender, "<green>Gerador de '" + template.get().getId() + "' entregue a " + target.getName() + ".");
-        ChatUtil.send(target, "<green>Voce recebeu um gerador de mina particular! Use-o com clique direito na sua plot.");
+        ChatUtil.sendKey(sender, "admin.generator-given", Map.of("template", template.get().getId(), "player", target.getName()));
+        ChatUtil.sendKey(target, "admin.generator-received");
     }
 
     /** /alkamines esquematicos - mostra os .schem que o plugin enxerga e quais templates usam cada um. */
@@ -403,9 +405,9 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         List<java.io.File> files = privateMineManager.listSchematicFiles();
-        ChatUtil.send(sender, "<aqua><b>Schematics encontrados (" + files.size() + "):</b>");
+        ChatUtil.sendKey(sender, "admin.schematics.header", Map.of("count", String.valueOf(files.size())));
         if (files.isEmpty()) {
-            ChatUtil.send(sender, "<yellow>Nenhum .schem. Fluxo: //wand, selecione, //copy, //schem save <nome>.");
+            ChatUtil.sendKey(sender, "admin.schematics.empty");
             return;
         }
         for (java.io.File file : files) {
@@ -417,10 +419,10 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
                     .map(com.alka.mines.model.MineTemplate::getId)
                     .reduce((a, b) -> a + ", " + b)
                     .orElse("(sem template)");
-            ChatUtil.send(sender, "<gray>- <white>" + file.getName() + " <dark_gray>(" + file.getParentFile().getName()
-                    + ") <green>-> " + template);
+            ChatUtil.sendKey(sender, "admin.schematics.entry", Map.of(
+                    "file", file.getName(), "folder", file.getParentFile().getName(), "templates", template));
         }
-        ChatUtil.send(sender, "<gray>Dica: defina 'schematic: <nome>' no template e rode /alkamines reload.");
+        ChatUtil.sendKey(sender, "admin.schematics.hint");
     }
 
     /** /alkamines registrarmina [<template>] <nome> - salva a selecao do WorldEdit como schematic
@@ -431,12 +433,11 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (!(sender instanceof Player player)) {
-            ChatUtil.send(sender, "<red>Apenas jogadores podem usar esse comando.");
+            ChatUtil.sendKey(sender, "generic.player-only");
             return;
         }
         if (args.length < 2) {
-            ChatUtil.send(sender, "<red>Uso: /alkamines registrarmina <nome>   (cria template novo)");
-            ChatUtil.send(sender, "<red>      /alkamines registrarmina <template> <nome>   (usa template existente)");
+            ChatUtil.sendKey(sender, "error.usage.register");
             return;
         }
         String templateId;
@@ -453,8 +454,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             ChatUtil.send(sender, error);
             return;
         }
-        ChatUtil.send(sender, "<green>Mina '" + name + "' registrada no template '" + templateId
-                + "'. Da o gerador com /alkamines givegerador <jogador> " + templateId + " e ative na plot.");
+        ChatUtil.sendKey(sender, "admin.mine-registered", Map.of("name", name, "template", templateId));
     }
 
     @Override

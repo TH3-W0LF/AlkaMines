@@ -60,7 +60,7 @@ public class MineRewardsMenu {
     private void open(Player admin, String mineId, Screen screen, int rewardIndex, int page) {
         Mine mine = mineManager.getMine(mineId).orElse(null);
         if (mine == null) {
-            ChatUtil.send(admin, "<red>Mina nao encontrada: " + mineId);
+            ChatUtil.sendKey(admin, "error.mine-not-found", Map.of("mine", mineId));
             return;
         }
 
@@ -280,7 +280,7 @@ public class MineRewardsMenu {
             return;
         }
         if (input.equalsIgnoreCase("cancelar")) {
-            ChatUtil.send(player, "<yellow>Operacao cancelada.");
+            ChatUtil.sendKey(player, "generic.cancelled");
             open(player, request.mineId(), Screen.COMMANDS, request.rewardIndex(), 0);
             return;
         }
@@ -292,7 +292,7 @@ public class MineRewardsMenu {
         MineReward reward = mine.getRewards().get(request.rewardIndex());
         reward.getCommands().add(input.trim());
         mineManager.save();
-        ChatUtil.send(player, "<green>Comando adicionado: /" + input.trim());
+        ChatUtil.sendKey(player, "admin.reward.command-added", Map.of("command", input.trim()));
         open(player, request.mineId(), Screen.COMMANDS, request.rewardIndex(), 0);
     }
 

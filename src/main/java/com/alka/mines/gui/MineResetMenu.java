@@ -50,53 +50,51 @@ public class MineResetMenu {
     void promptInterval(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.INTERVAL));
         admin.closeInventory();
-        ChatUtil.send(admin, "<yellow>Digite o intervalo de reset em minutos (ex: 30). Digite <red>cancelar</red><yellow> para voltar.");
+        ChatUtil.sendKey(admin, "admin.reset.prompt-interval");
     }
 
     void promptPercentage(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.PERCENTAGE));
         admin.closeInventory();
-        ChatUtil.send(admin, "<yellow>Digite a porcentagem restante para resetar (0 a 100). Digite <red>cancelar</red><yellow> para voltar.");
+        ChatUtil.sendKey(admin, "admin.reset.prompt-percentage");
     }
 
     void promptPermission(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.PERMISSION));
         admin.closeInventory();
-        ChatUtil.send(admin, "<yellow>Digite a permissao necessaria (ex: alkaminas.mina.vip). Digite <red>remover</red><yellow> para liberar ou <red>cancelar</red><yellow> para voltar.");
+        ChatUtil.sendKey(admin, "admin.reset.prompt-permission");
     }
 
     void promptActionbarRange(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.ACTIONBAR_RANGE));
         admin.closeInventory();
-        ChatUtil.send(admin, "<yellow>Digite o raio (em blocos) do ActionBar de status da mina. Digite <red>cancelar</red><yellow> para voltar.");
+        ChatUtil.sendKey(admin, "admin.reset.prompt-actionbar");
     }
 
     void promptBroadcast(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.BROADCAST));
         admin.closeInventory();
-        ChatUtil.send(admin, "<yellow>Digite o modo de broadcast do reset: <white>0</white> = mundo, <white>-1</white> = todos, "
-                + "<white>-2</white> = silencioso, <white>N</white> = raio em blocos. Digite <red>cancelar</red><yellow> para voltar.");
+        ChatUtil.sendKey(admin, "admin.reset.prompt-broadcast");
     }
 
     void promptResetCommand(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.RESET_COMMAND));
         admin.closeInventory();
-        ChatUtil.send(admin, "<yellow>Digite um comando pra rodar no reset (sem /, use <white>%mine%</white> e <white>%display%</white>). "
-                + "Digite <red>limpar</red><yellow> pra esvaziar a lista ou <red>cancelar</red><yellow> pra voltar.");
+        ChatUtil.sendKey(admin, "admin.reset.prompt-command");
     }
 
     /** Chamado direto pelo AdminMainMenu - pula esta tela, vai direto pro chat. */
     public void promptCategory(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.CATEGORY));
         admin.closeInventory();
-        ChatUtil.send(admin, "<yellow>Digite o nome da categoria desta mina (ex: vip, pvp, ranking). Digite <red>cancelar</red><yellow> para voltar.");
+        ChatUtil.sendKey(admin, "admin.reset.prompt-category");
     }
 
     /** Chamado direto pelo AdminMainMenu - pula esta tela, vai direto pro chat. */
     public void promptRename(Player admin, String mineId) {
         pending.put(admin.getUniqueId(), new PendingResetInput(mineId, Field.RENAME));
         admin.closeInventory();
-        ChatUtil.send(admin, "<yellow>Digite o novo nome de exibicao desta mina. Digite <red>cancelar</red><yellow> para voltar.");
+        ChatUtil.sendKey(admin, "admin.reset.prompt-rename");
     }
 
     /** Chamado pelo MineResetChatListener, ja na main thread, com o texto digitado no chat. */
@@ -107,7 +105,7 @@ public class MineResetMenu {
         }
 
         if (input.equalsIgnoreCase("cancelar")) {
-            ChatUtil.send(admin, "<yellow>Operacao cancelada.");
+            ChatUtil.sendKey(admin, "generic.cancelled");
             reopenAfter(request.field(), admin, request.mineId());
             return;
         }
@@ -134,7 +132,7 @@ public class MineResetMenu {
         try {
             minutes = Integer.parseInt(input.trim());
         } catch (NumberFormatException e) {
-            ChatUtil.send(admin, "<red>Valor invalido. Digite um numero inteiro maior que 0, ou 'cancelar'.");
+            ChatUtil.sendKey(admin, "generic.invalid-number");
             pending.put(admin.getUniqueId(), request);
             return;
         }
@@ -147,7 +145,7 @@ public class MineResetMenu {
 
         mine.getSettings().setResetIntervalMinutes(minutes);
         mineManager.save();
-        ChatUtil.send(admin, "<green>Intervalo de reset definido para " + minutes + " minutos.");
+        ChatUtil.sendKey(admin, "admin.reset.interval-set", Map.of("minutes", String.valueOf(minutes)));
         reopenAfter(Field.INTERVAL, admin, request.mineId());
     }
 
@@ -156,7 +154,7 @@ public class MineResetMenu {
         try {
             percentage = Double.parseDouble(input.trim().replace(",", "."));
         } catch (NumberFormatException e) {
-            ChatUtil.send(admin, "<red>Valor invalido. Digite um numero de 0 a 100, ou 'cancelar'.");
+            ChatUtil.sendKey(admin, "generic.invalid-number");
             pending.put(admin.getUniqueId(), request);
             return;
         }
@@ -169,14 +167,14 @@ public class MineResetMenu {
 
         mine.getSettings().setResetPercentage(percentage);
         mineManager.save();
-        ChatUtil.send(admin, "<green>Porcentagem de reset definida para " + trim(percentage) + "%.");
+        ChatUtil.sendKey(admin, "admin.reset.percentage-set", Map.of("percentage", trim(percentage)));
         reopenAfter(Field.PERCENTAGE, admin, request.mineId());
     }
 
     private void handleCategoryInput(Player admin, Mine mine, PendingResetInput request, String input) {
         mine.setCategory(input.trim().toLowerCase());
         mineManager.save();
-        ChatUtil.send(admin, "<green>Categoria da mina '" + mine.getId() + "' definida como '" + mine.getCategory() + "'.");
+        ChatUtil.sendKey(admin, "admin.reset.category-set", Map.of("mine", mine.getId(), "category", mine.getCategory()));
         reopenAfter(Field.CATEGORY, admin, request.mineId());
     }
 
@@ -190,17 +188,17 @@ public class MineResetMenu {
         mine.setDisplayName(name);
         mineManager.save();
         hologramManager.updateHologram(mine);
-        ChatUtil.send(admin, "<green>Mina '" + mine.getId() + "' renomeada para '" + name + "'.");
+        ChatUtil.sendKey(admin, "admin.renamed", Map.of("mine", mine.getId(), "name", name));
         reopenAfter(Field.RENAME, admin, request.mineId());
     }
 
     private void handlePermissionInput(Player admin, Mine mine, PendingResetInput request, String input) {
         if (input.equalsIgnoreCase("remover")) {
             mine.getSettings().setPermission("");
-            ChatUtil.send(admin, "<green>Permissao de entrada removida - mina '" + mine.getId() + "' agora e publica.");
+            ChatUtil.sendKey(admin, "admin.reset.permission-removed", Map.of("mine", mine.getId()));
         } else {
             mine.getSettings().setPermission(input.trim());
-            ChatUtil.send(admin, "<green>Permissao de entrada da mina '" + mine.getId() + "' definida como '" + input.trim() + "'.");
+            ChatUtil.sendKey(admin, "admin.reset.permission-set", Map.of("mine", mine.getId(), "permission", input.trim()));
         }
         mineManager.save();
         reopenAfter(Field.PERMISSION, admin, request.mineId());
@@ -224,18 +222,18 @@ public class MineResetMenu {
         try {
             range = Integer.parseInt(input.trim());
         } catch (NumberFormatException e) {
-            ChatUtil.send(admin, "<red>Valor invalido. Digite um numero inteiro >= 0, ou 'cancelar'.");
+            ChatUtil.sendKey(admin, "generic.invalid-number");
             pending.put(admin.getUniqueId(), request);
             return;
         }
         if (range < 0) {
-            ChatUtil.send(admin, "<red>O raio nao pode ser negativo.");
+            ChatUtil.sendKey(admin, "generic.negative-value");
             pending.put(admin.getUniqueId(), request);
             return;
         }
         mine.getSettings().setActionbarRange(range);
         mineManager.save();
-        ChatUtil.send(admin, "<green>Raio do ActionBar definido para " + range + " blocos.");
+        ChatUtil.sendKey(admin, "admin.reset.actionbar-set", Map.of("range", String.valueOf(range)));
         reopenAfter(Field.ACTIONBAR_RANGE, admin, request.mineId());
     }
 
@@ -244,13 +242,13 @@ public class MineResetMenu {
         try {
             mode = Integer.parseInt(input.trim());
         } catch (NumberFormatException e) {
-            ChatUtil.send(admin, "<red>Valor invalido. Digite 0, -1, -2 ou um raio >= 1, ou 'cancelar'.");
+            ChatUtil.sendKey(admin, "generic.invalid-number");
             pending.put(admin.getUniqueId(), request);
             return;
         }
         mine.getSettings().setBroadcastMode(mode);
         mineManager.save();
-        ChatUtil.send(admin, "<green>Broadcast do reset definido para o modo " + mode + ".");
+        ChatUtil.sendKey(admin, "admin.reset.broadcast-set", Map.of("mode", String.valueOf(mode)));
         reopenAfter(Field.BROADCAST, admin, request.mineId());
     }
 
@@ -258,7 +256,7 @@ public class MineResetMenu {
         if (input.equalsIgnoreCase("limpar")) {
             mine.getSettings().getResetCommands().clear();
             mineManager.save();
-            ChatUtil.send(admin, "<green>Lista de comandos de reset esvaziada.");
+            ChatUtil.sendKey(admin, "admin.reset.commands-cleared");
             reopenAfter(Field.RESET_COMMAND, admin, request.mineId());
             return;
         }
@@ -270,7 +268,7 @@ public class MineResetMenu {
         }
         mine.getSettings().getResetCommands().add(command);
         mineManager.save();
-        ChatUtil.send(admin, "<green>Comando adicionado: /" + command);
+        ChatUtil.sendKey(admin, "admin.reset.command-added", Map.of("command", command));
         reopenAfter(Field.RESET_COMMAND, admin, request.mineId());
     }
 

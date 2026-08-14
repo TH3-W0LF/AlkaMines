@@ -47,7 +47,7 @@ public class AdminMainMenuGui extends BaseGui {
     public void render() {
         Mine mine = mineManager.getMine(mineId).orElse(null);
         if (mine == null) {
-            ChatUtil.send(player, "<red>Mina nao encontrada: " + mineId);
+            ChatUtil.sendKey(player, "error.mine-not-found", Map.of("mine", mineId));
             player.closeInventory();
             return;
         }
@@ -128,27 +128,29 @@ public class AdminMainMenuGui extends BaseGui {
                 Map.of("location", mine.getHologramLocation() != null ? "Definido" : "Nao definido")),
                 event -> {
                     if (!hologramsEnabled) {
-                        ChatUtil.send(player, "<red>DecentHolograms nao esta instalado neste servidor.");
+                        ChatUtil.sendKey(player, "error.hologram-offline");
                         return;
                     }
                     Location loc = player.getLocation();
                     mine.setHologramLocation(loc);
                     hologramManager.createOrUpdate(mine, loc);
                     mineManager.save();
-                    ChatUtil.send(player, "<green>Holograma setado em <white>" + loc.getBlockX() + " "
-                            + loc.getBlockY() + " " + loc.getBlockZ() + "</white><green>. Use o menu para atualizar.");
+                    ChatUtil.sendKey(player, "admin.hologram-set", Map.of(
+                            "x", String.valueOf(loc.getBlockX()),
+                            "y", String.valueOf(loc.getBlockY()),
+                            "z", String.valueOf(loc.getBlockZ())));
                 });
         setItem(22, cfg.item("items.admin.delete", Map.of()),
                 event -> {
                     if (!event.isShiftClick()) {
-                        ChatUtil.send(player, "<yellow>Shift+Click para confirmar a exclusao.");
+                        ChatUtil.sendKey(player, "admin.delete-confirm");
                         return;
                     }
                     player.closeInventory();
                     String id = mine.getId();
                     mineManager.deleteMine(id);
                     hologramManager.delete(id);
-                    ChatUtil.send(player, "<green>Mina '" + id + "' deletada.");
+                    ChatUtil.sendKey(player, "admin.mine-deleted", Map.of("mine", id));
                 });
     }
 }

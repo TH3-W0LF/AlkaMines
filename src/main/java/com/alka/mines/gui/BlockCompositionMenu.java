@@ -68,7 +68,7 @@ public class BlockCompositionMenu {
     private void open(Player admin, String mineId, boolean xpMode) {
         Mine mine = mineManager.getMine(mineId).orElse(null);
         if (mine == null) {
-            ChatUtil.send(admin, "<red>Mina nao encontrada: " + mineId);
+            ChatUtil.sendKey(admin, "error.mine-not-found", Map.of("mine", mineId));
             return;
         }
 
@@ -250,12 +250,12 @@ public class BlockCompositionMenu {
 
     private void addBlock(Player player, Mine mine, Material material) {
         if (mine.getComposition().stream().anyMatch(b -> b.getMaterial() == material)) {
-            ChatUtil.send(player, "<red>Esse material ja esta na composicao - clique nele pra editar.");
+            ChatUtil.sendKey(player, "admin.composition.exists");
             return;
         }
         mine.getComposition().add(new MineBlock(material, 10.0));
         mineManager.save();
-        ChatUtil.send(player, "<green>" + material.name() + " adicionado com chance 10 (relativa).");
+        ChatUtil.sendKey(player, "admin.composition.added", Map.of("material", material.name()));
         player.closeInventory();
         open(player, mine.getId());
     }
@@ -263,7 +263,7 @@ public class BlockCompositionMenu {
     private void removeBlock(Player player, Mine mine, Material material) {
         mine.getComposition().removeIf(b -> b.getMaterial() == material);
         mineManager.save();
-        ChatUtil.send(player, "<red>" + material.name() + " removido da composicao.");
+        ChatUtil.sendKey(player, "admin.composition.removed", Map.of("material", material.name()));
         player.closeInventory();
         open(player, mine.getId());
     }
@@ -272,11 +272,8 @@ public class BlockCompositionMenu {
         pending.put(player.getUniqueId(), new PendingBlockInput(mineId, material, field));
         player.closeInventory();
 
-        String question = switch (field) {
-            case NORMAL_XP -> "<green>Digite o XP normal (vanilla) dado ao quebrar este bloco (0 = nenhum).";
-            case MCMMO_XP -> "<green>Digite o XP de mcMMO (Mineracao) dado ao quebrar este bloco (0 = nenhum XP).";
-        };
-        ChatUtil.send(player, question + " Digite <red>cancelar</red><green> para voltar.");
+        ChatUtil.sendKey(player, field == Field.MCMMO_XP
+                ? "admin.composition.prompt-mcmmo" : "admin.composition.prompt-xp");
     }
 
     /**
@@ -291,7 +288,7 @@ public class BlockCompositionMenu {
         }
 
         if (input.equalsIgnoreCase("cancelar")) {
-            ChatUtil.send(player, "<yellow>Operacao cancelada.");
+            ChatUtil.sendKey(player, "generic.cancelled");
             reopenXp(player, request.mineId());
             return;
         }
@@ -311,12 +308,12 @@ public class BlockCompositionMenu {
         try {
             xp = Double.parseDouble(input.replace(",", "."));
         } catch (NumberFormatException e) {
-            ChatUtil.send(player, "<red>Valor invalido. Digite um numero (0 ou mais), ou 'cancelar'.");
+            ChatUtil.sendKey(player, "generic.invalid-number");
             pending.put(player.getUniqueId(), request);
             return;
         }
         if (xp < 0) {
-            ChatUtil.send(player, "<red>O valor nao pode ser negativo.");
+            ChatUtil.sendKey(player, "generic.negative-value");
             pending.put(player.getUniqueId(), request);
             return;
         }
@@ -328,9 +325,10 @@ public class BlockCompositionMenu {
             block.setNormalXp(xp);
         }
         mineManager.save();
-        ChatUtil.send(player, "<green>" + block.getMaterial().name() + " agora da " + trim(xp) + " XP "
-                + (request.field() == Field.MCMMO_XP ? "de mcMMO" : "normal") + " ao quebrar"
-                + (request.field() == Field.MCMMO_XP && xp <= 0 ? " (desligado na mina)." : "."));
+        ChatUtil.sendKey(player, "admin.composition.xp-set", Map.of(
+                "material", block.getMaterial().name(),
+                "xp", trim(xp),
+                "type", request.field() == Field.MCMMO_XP ? "de mcMMO" : "normal"));
         reopenXp(player, request.mineId());
     }
 

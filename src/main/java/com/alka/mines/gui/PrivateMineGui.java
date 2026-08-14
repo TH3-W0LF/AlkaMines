@@ -40,13 +40,13 @@ public class PrivateMineGui extends BaseGui {
     public void render() {
         Optional<PrivateMine> optional = privateMineManager.getMineProtectingAt(player.getLocation());
         if (optional.isEmpty()) {
-            ChatUtil.send(player, "<red>Voce nao esta numa mina particular.");
+            ChatUtil.sendKey(player, "private-mine.not-in-mine");
             player.closeInventory();
             return;
         }
         PrivateMine mine = optional.get();
         if (!mine.getOwner().equals(player.getUniqueId())) {
-            ChatUtil.send(player, "<red>Essa mina nao e sua.");
+            ChatUtil.sendKey(player, "private-mine.not-owner");
             player.closeInventory();
             return;
         }
@@ -76,7 +76,7 @@ public class PrivateMineGui extends BaseGui {
             if (error != null) {
                 ChatUtil.send(player, error);
             } else {
-                ChatUtil.send(player, "<green>Mina expandida! Custo descontado.");
+                ChatUtil.sendKey(player, "private-mine.upgrade-success");
                 refresh();
             }
         });
@@ -95,7 +95,7 @@ public class PrivateMineGui extends BaseGui {
                 if (error != null) {
                     ChatUtil.send(player, error);
                 } else {
-                    ChatUtil.send(player, "<green>Reset definido pra " + option + " min.");
+                    ChatUtil.sendKey(player, "private-mine.reset-set", Map.of("minutes", String.valueOf(option)));
                     refresh();
                 }
             });

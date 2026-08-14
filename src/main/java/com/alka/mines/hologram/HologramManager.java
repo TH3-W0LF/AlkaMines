@@ -2,11 +2,15 @@ package com.alka.mines.hologram;
 
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
+import com.alka.mines.model.MineTemplate;
+import com.alka.mines.model.PrivateMine;
 import com.alka.mines.util.ChatUtil;
 import eu.decentsoftware.holograms.api.DHAPI;
 import eu.decentsoftware.holograms.api.holograms.Hologram;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -25,9 +29,14 @@ import java.util.logging.Level;
  * diferente; se precisar, criar um segundo HologramManager e escolher qual
  * instanciar no onEnable conforme o plugin presente).
  *
- * Linhas configuraveis via holograms.yml (secao "template", placeholders %name%/
- * %category%/%blocks%/%percentage%/%min_level%/%reset_time%) - criado com um default
- * sensato na primeira vez que o plugin roda, se ainda nao existir.
+ * Linhas configuraveis via holograms.yml (secao "template"/"private-template") - criado
+ * com um default sensato na primeira vez que o plugin roda, se ainda nao existir.
+ * IMPORTANTE: as linhas do template usam codigo & LEGADO (nao MiniMessage) porque o
+ * DHAPI so entende &/paragraph, nunca <tag> - unica excecao a regra [R5] do estudio
+ * (mensagem de CHAT e que e MiniMessage-only, ver ChatUtil/MessagesConfig). O
+ * %name%/displayName da mina (editavel via /alkamines renomear com <rainbow> etc) e
+ * a unica peca que nasce em MiniMessage e passa por {@link ChatUtil#toLegacy} antes
+ * de entrar na linha.
  */
 public class HologramManager {
 
@@ -74,18 +83,29 @@ public class HologramManager {
 
     private List<String> defaultTemplate() {
         return List.of(
-                "&d&l%name%",
-                "&fBlocos restantes: &7%blocks%",
-                "&fRestante: &a%percentage%%",
-                "&fReset em: &7%reset_time%"
+                "&8&m━━━━━━━━━━━━━━━",
+                "&6&l⛏ %name%",
+                "&7Categoria: &f%category%",
+                "&7Nivel: &e%min_level%",
+                "%progress_bar% &7%percentage%%",
+                "&7Blocos: &f%blocks%",
+                "%status%",
+                "&8&m━━━━━━━━━━━━━━━",
+                "&7Reset em: &f%reset_time%"
         );
     }
 
     private List<String> defaultPrivateTemplate() {
         return List.of(
-                "&d&l%name%",
-                "&fBlocos restantes: &7%blocks%",
-                "&fReset em: &7%time%"
+                "&8&m━━━━━━━━━━━━━━━",
+                "&b&l🏠 %name%",
+                "&7Dono: &f%owner%",
+                "&7Template: &e%template_name% %rarity_stars%",
+                "&7Nivel: &e%upgrade_level%",
+                "%progress_bar% &7%percentage%%",
+                "&7Blocos: &f%blocks%&7/&f%volume%",
+                "&8&m━━━━━━━━━━━━━━━",
+                "&7Reset: &f%reset_interval% min"
         );
     }
 
@@ -164,6 +184,7 @@ public class HologramManager {
         // MiniMessage (displayName e editavel via /alkamines renomear com tags tipo
         // <rainbow>) -> legacy, ja que o DHAPI so entende &/paragraph, nunca <tag>.
         String legacyName = ChatUtil.toLegacy(mine.getDisplayName());
+        long remainingSec = resetRemainingSec(mine.getSettings().getResetIntervalMinutes(), mine.getLastReset());
 
         List<String> lines = new ArrayList<>();
         for (String line : templateLines) {
@@ -173,7 +194,10 @@ public class HologramManager {
                     .replace("%blocks%", String.format(Locale.US, "%,d", mine.getBlocksRemaining()))
                     .replace("%percentage%", String.valueOf(percentage))
                     .replace("%min_level%", String.valueOf(mine.getSettings().getMinPickaxeLevel()))
-                    .replace("%reset_time%", formatResetTime(mine));
+                    .replace("%reset_time%", formatResetTime(mine))
+                    .replace("%progress_bar%", buildProgressBar(percentage))
+                    .replace("%status%", buildStatus(percentage, remainingSec))
+                    .replace("%players%", String.valueOf(countPlayersInMine(mine)));
             lines.add(processed);
         }
         return lines;
@@ -184,16 +208,82 @@ public class HologramManager {
         if (intervalMinutes <= 0) {
             return "&cManual";
         }
-        long elapsedMs = System.currentTimeMillis() - mine.getLastReset();
-        long remainingMs = Math.max(0, intervalMinutes * 60_000L - elapsedMs);
-        long remainingSec = remainingMs / 1000;
+        long remainingSec = resetRemainingSec(intervalMinutes, mine.getLastReset());
         return String.format("&f%02d&7:&f%02d", remainingSec / 60, remainingSec % 60);
+    }
+
+    private long resetRemainingSec(int intervalMinutes, long lastReset) {
+        if (intervalMinutes <= 0) {
+            return -1;
+        }
+        long elapsedMs = System.currentTimeMillis() - lastReset;
+        long remainingMs = Math.max(0, intervalMinutes * 60_000L - elapsedMs);
+        return remainingMs / 1000;
+    }
+
+    /** Conta jogadores online dentro da area de mineracao/lobby da mina (containsLobby cobre
+     * lobby customizado se houver, senao cai pra regiao de mineracao - ver Mine#containsLobby). */
+    private int countPlayersInMine(Mine mine) {
+        World world = Bukkit.getWorld(mine.getRegion().getWorld());
+        if (world == null) {
+            return 0;
+        }
+        int count = 0;
+        for (org.bukkit.entity.Player player : world.getPlayers()) {
+            if (mine.containsLobby(player.getLocation())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String buildProgressBar(double percentage) {
+        int filled = (int) Math.round(percentage / 10.0);
+        filled = Math.max(0, Math.min(10, filled));
+        int empty = 10 - filled;
+        StringBuilder bar = new StringBuilder();
+        if (percentage >= 75) {
+            bar.append("&a");
+        } else if (percentage >= 40) {
+            bar.append("&e");
+        } else {
+            bar.append("&c");
+        }
+        bar.append("█".repeat(filled));
+        bar.append("&7");
+        bar.append("░".repeat(empty));
+        return bar.toString();
+    }
+
+    private String buildStatus(double percentage, long remainingSec) {
+        if (remainingSec == 0 && percentage < 100) {
+            return "&a● &aResetando...";
+        }
+        if (percentage >= 75) {
+            return "&a● &aDisponivel";
+        }
+        if (percentage >= 40) {
+            return "&e● &eEm uso";
+        }
+        if (percentage >= 10) {
+            return "&6● &6Quase vazia";
+        }
+        return "&c● &cCritica";
+    }
+
+    private String buildRarityStars(String rarity) {
+        int stars = rarity == null ? 0 : rarity.replaceAll("[^★]", "").length();
+        if (stars <= 0) {
+            stars = 1;
+        }
+        stars = Math.min(stars, 5);
+        return "&e" + "★".repeat(stars) + "&7" + "☆".repeat(Math.max(0, 5 - stars));
     }
 
     // ---------- hologramas de minas particulares ----------
 
     /** Cria (ou recria) o holograma de status acima de uma mina particular. */
-    public void createPrivate(String mineKey, Location loc, String displayName) {
+    public void createPrivate(String mineKey, Location loc, PrivateMine mine, MineTemplate template) {
         if (!enabled) {
             return;
         }
@@ -202,17 +292,17 @@ public class HologramManager {
             DHAPI.removeHologram(id);
         }
         Location top = loc.clone().add(0, 2.0, 0);
-        DHAPI.createHologram(id, top, buildPrivateLines(displayName, 0, "&7--:--"));
+        DHAPI.createHologram(id, top, buildPrivateLines(mine, template));
     }
 
     /** Atualiza as linhas do holograma de uma mina particular. */
-    public void updatePrivate(String mineKey, String displayName, long remaining, String time) {
+    public void updatePrivate(String mineKey, PrivateMine mine, MineTemplate template) {
         if (!enabled) {
             return;
         }
         Hologram hologram = DHAPI.getHologram(privateId(mineKey));
         if (hologram != null) {
-            DHAPI.setHologramLines(hologram, buildPrivateLines(displayName, remaining, time));
+            DHAPI.setHologramLines(hologram, buildPrivateLines(mine, template));
         }
     }
 
@@ -223,14 +313,34 @@ public class HologramManager {
         DHAPI.removeHologram(privateId(mineKey));
     }
 
-    private List<String> buildPrivateLines(String displayName, long remaining, String time) {
-        List<String> lines = new ArrayList<>();
+    private List<String> buildPrivateLines(PrivateMine mine, MineTemplate template) {
+        String displayName = template != null ? template.getDisplayName() : mine.getTemplateId();
         String legacyName = ChatUtil.toLegacy(displayName);
+        OfflinePlayer owner = Bukkit.getOfflinePlayer(mine.getOwner());
+        String ownerName = owner.getName() != null ? owner.getName() : mine.getOwner().toString();
+
+        long volume = mine.volume();
+        double pct = volume > 0
+                ? Math.round((mine.getBlocksRemaining() / (double) volume) * 1000.0) / 10.0
+                : 0.0;
+        int resetInterval = mine.getResetIntervalMinutes();
+        long remainingSec = resetRemainingSec(resetInterval, mine.getLastReset());
+        String rarity = template != null ? template.getRarity() : "★";
+
+        List<String> lines = new ArrayList<>();
         for (String line : privateTemplateLines) {
             lines.add(line
                     .replace("%name%", legacyName)
-                    .replace("%blocks%", String.format(Locale.US, "%,d", remaining))
-                    .replace("%time%", time));
+                    .replace("%owner%", ownerName)
+                    .replace("%template_name%", legacyName)
+                    .replace("%rarity_stars%", buildRarityStars(rarity))
+                    .replace("%upgrade_level%", String.valueOf(mine.getUpgradeLevel()))
+                    .replace("%blocks%", String.format(Locale.US, "%,d", mine.getBlocksRemaining()))
+                    .replace("%volume%", String.format(Locale.US, "%,d", volume))
+                    .replace("%percentage%", String.valueOf(pct))
+                    .replace("%progress_bar%", buildProgressBar(pct))
+                    .replace("%status%", buildStatus(pct, remainingSec))
+                    .replace("%reset_interval%", String.valueOf(resetInterval)));
         }
         return lines;
     }

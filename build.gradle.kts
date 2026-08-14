@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.alkacode"
-version = "1.0.76"
+version = "1.0.77"
 
 java {
     toolchain {
@@ -31,7 +31,7 @@ dependencies {
     // depend hard no plugin.yml - o AlkaMines usa o AlkaCore de verdade: AlkaPlugin
     // (classe base + AlkaAPI), MessageProvider (mensagens), BaseGui (menus) e
     // AbstractRepository/DatabaseProvider (dados de jogador em SQL).
-    compileOnly("com.alkacode:AlkaCore:1.0.0")
+    compileOnly("com.alkacode:AlkaCore:1.0.2")
     // AlkaEconomy e AlkaShop NAO sao dependencia de compilacao - os hooks falam com
     // eles 100% via reflexao (ver comentario nas classes: um import direto de
     // AlkaEconomyPlugin/AlkaShopAPI aqui causava NoClassDefFoundError sem o plugin
