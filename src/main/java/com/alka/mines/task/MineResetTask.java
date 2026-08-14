@@ -38,6 +38,11 @@ public class MineResetTask implements Runnable {
         List<Mine> mines = new ArrayList<>(mineManager.getMines());
 
         for (Mine mine : mines) {
+            if (mine.isResetting()) {
+                // ja tem um reset em voo pra essa mina - nao reavalia (evita chamar
+                // resetService.reset() de novo a cada tick antes do FAWE terminar).
+                continue;
+            }
             MineSettings settings = mine.getSettings();
 
             if (settings.getResetIntervalMinutes() > 0

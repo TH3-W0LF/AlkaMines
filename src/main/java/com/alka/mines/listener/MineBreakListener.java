@@ -145,11 +145,25 @@ public class MineBreakListener implements Listener {
 
         Block block = event.getBlock();
         Mine mine = mineManager.getMineAt(block.getLocation()).orElse(null);
+        if (mine != null && mine.isResetting()) {
+            // FAWE esta escrevendo essa regiao AGORA (reset em voo) - nunca deixar o
+            // vanilla quebrar um bloco que pode estar sendo sobrescrito nesse exato
+            // instante em outra thread. Resincroniza o bloco pro jogador pra desfazer
+            // qualquer previsao de quebra que o client ja tenha feito (Paper 1.21+).
+            event.setCancelled(true);
+            player.sendBlockChange(block.getLocation(), block.getBlockData());
+            return;
+        }
         if (mine == null) {
             // mina particular: a plot INTEIRA e protegida - so blocos da composicao do
             // template quebram (paredes/decoracao ficam intransponiveis).
             PrivateMine privateMine = privateMineManager != null
                     ? privateMineManager.getMineProtectingAt(block.getLocation()).orElse(null) : null;
+            if (privateMine != null && privateMine.isResetting()) {
+                event.setCancelled(true);
+                player.sendBlockChange(block.getLocation(), block.getBlockData());
+                return;
+            }
             if (privateMine != null) {
                 MineTemplate template = privateMineManager.getTemplate(privateMine.getTemplateId()).orElse(null);
                 // so quebra o que e minerio E esta na composicao do template - qualquer

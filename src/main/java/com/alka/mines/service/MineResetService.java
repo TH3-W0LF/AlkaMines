@@ -26,6 +26,20 @@ public class MineResetService {
     }
 
     public void reset(Mine mine) {
+        // Guarda contra reset duplicado: o MineResetTask reavalia as condicoes de reset a
+        // cada 20 ticks (1s), mas lastReset/blocksRemaining so sao atualizados aqui DEPOIS
+        // que o FAWE assincrono termina - numa mina grande isso pode levar varios segundos,
+        // entao sem essa guarda o mesmo reset() era disparado de novo a cada tick (time-based
+        // reavalia "ja passou o intervalo" sempre true; percentage-based reavalia "ainda esta
+        // abaixo do limite" tambem sempre true, ja que ninguem mais quebra bloco depois do
+        // teleport) - varios EditSession do FAWE escrevendo a MESMA regiao ao mesmo tempo,
+        // em threads diferentes, e a causa raiz mais provavel do "ghost block"/corrupcao que
+        // piora proporcionalmente ao tamanho (e portanto ao tempo) do reset.
+        if (mine.isResetting()) {
+            DebugLogger.log("Reset da mina '%s' ignorado - ja tem um reset em andamento.", mine.getId());
+            return;
+        }
+
         // API: MinePreResetEvent cancelavel - segura reset durante eventos/guerras.
         MinePreResetEvent preReset = new MinePreResetEvent(mine);
         Bukkit.getPluginManager().callEvent(preReset);
@@ -34,6 +48,7 @@ public class MineResetService {
             return;
         }
 
+        mine.setResetting(true);
         DebugLogger.log("Reset da mina '%s' iniciado (volume=%d, restantes=%d).",
                 mine.getId(), mine.getRegion().getVolume(), mine.getBlocksRemaining());
         teleportPlayersOut(mine);
@@ -58,6 +73,10 @@ public class MineResetService {
 
                 DebugLogger.log("Reset '%s' concluido na main thread (restantes=%d).",
                         mine.getId(), mine.getBlocksRemaining());
+                // so libera a guarda DEPOIS de lastReset/blocksRemaining ja estarem
+                // atualizados, senao o MineResetTask do proximo tick pode ver o estado
+                // "resetting=false" mas ainda com os valores antigos e disparar de novo.
+                mine.setResetting(false);
                 Bukkit.getPluginManager().callEvent(new MineResetEvent(mine));
             });
         });

@@ -948,16 +948,22 @@ public class PrivateMineManager {
             // intervalo do dono (menu particular) tem prioridade sobre o do template.
             int intervalMinutes = mine.getResetIntervalMinutes() > 0
                     ? mine.getResetIntervalMinutes() : template.getResetIntervalMinutes();
-            if (intervalMinutes > 0
+            if (!mine.isResetting() && intervalMinutes > 0
                     && System.currentTimeMillis() - mine.getLastReset() >= intervalMinutes * 60_000L) {
                 DebugLogger.log("Reset de mina particular '%s': intervalo %d min.",
                         mine.getTemplateId(), intervalMinutes);
                 // teleporta quem esta DENTRO do volume mineravel pro topo (senao o player
                 // morreria sufocado quando o reset preencher a mina).
                 teleportPlayersOut(mine);
+                // bloqueia quebra (MineBreakListener) enquanto o fill agendado nao roda -
+                // liberado no proprio runTask, depois do fill() terminar.
+                mine.setResetting(true);
                 // main thread (runTask): o FAWE ja opera async internamente; rodar no pool
                 // async do Bukkit causava race/ghost blocks no cliente.
-                Bukkit.getScheduler().runTask(plugin, () -> fill(mine, template));
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    fill(mine, template);
+                    mine.setResetting(false);
+                });
                 mine.setLastReset(System.currentTimeMillis());
                 mine.setBlocksRemaining((int) Math.min(mine.volume(), Integer.MAX_VALUE));
             }

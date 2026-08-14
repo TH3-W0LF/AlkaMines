@@ -19,6 +19,12 @@ public class Mine {
     private MineSettings settings;
     private long lastReset;
     private int blocksRemaining;
+    /** Estado em memoria (nunca persistido) - true enquanto um reset (FAWE) esta em voo pra
+     * esta mina. Ver MineResetService/MineResetTask/MineBreakListener: impede reset duplicado
+     * (mesma mina resetada 2x em paralelo por causa do MineResetTask reavaliando a cada 20
+     * ticks antes do reset assincrono anterior terminar) e bloqueia quebra de bloco durante
+     * a janela de escrita do FAWE (a causa mais provavel de ghost block em minas grandes). */
+    private transient volatile boolean resetting;
     private String category;
     private Material icon;
     private String iconItemsAdder; // namespace do ItemsAdder - tem prioridade sobre icon quando definido
@@ -140,6 +146,14 @@ public class Mine {
 
     public void setBlocksRemaining(int blocksRemaining) {
         this.blocksRemaining = blocksRemaining;
+    }
+
+    public boolean isResetting() {
+        return resetting;
+    }
+
+    public void setResetting(boolean resetting) {
+        this.resetting = resetting;
     }
 
     /** Area de mineracao (blocos quebraveis) - a regiao original do WorldEdit. */

@@ -25,6 +25,9 @@ public class PrivateMine {
     private int resetIntervalMinutes;
     /** Nivel de upgrade (quantas vezes expandiu) - o custo de expandir escala com ele. */
     private int upgradeLevel;
+    /** Estado em memoria (nunca persistido) - true enquanto um fill/expand (FAWE) esta em
+     * andamento pra esta mina. Ver PrivateMineManager/MineBreakListener. */
+    private transient volatile boolean resetting;
 
     public PrivateMine(UUID owner, String worldName, int minX, int minY, int minZ,
                        int maxX, int maxY, int maxZ, String templateId) {
@@ -157,5 +160,13 @@ public class PrivateMine {
 
     public void setUpgradeLevel(int upgradeLevel) {
         this.upgradeLevel = upgradeLevel;
+    }
+
+    public boolean isResetting() {
+        return resetting;
+    }
+
+    public void setResetting(boolean resetting) {
+        this.resetting = resetting;
     }
 }
