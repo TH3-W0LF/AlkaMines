@@ -2,39 +2,31 @@ package com.alka.mines.service;
 
 import com.alka.mines.event.MinePreResetEvent;
 import com.alka.mines.event.MineResetEvent;
-import com.alka.mines.hook.FAWEHook;
+import com.alka.mines.hook.BlockFillHook;
 import com.alka.mines.manager.MineManager;
 import com.alka.mines.model.Mine;
 import com.alka.mines.util.DebugLogger;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
- * Orquestra o reset de uma mina: teleporta jogadores (sync, API do Bukkit), roda o
- * FAWEHook fora da main thread (FAWE e seguro pra isso, ao contrario do bloco por
- * bloco do Bukkit puro) e so entao atualiza o estado + dispara o evento, de volta na
- * main thread.
+ * Orquestra o reset de uma mina: teleporta jogadores e preenche a regiao com o
+ * BlockFillHook (escrita direta via Bukkit API, sincrona, sem FAWE - ver o javadoc de
+ * BlockFillHook pro motivo). Tudo dentro de uma unica chamada sincrona na main thread -
+ * sem fila assincrona, sem callback aninhado, sem janela de tempo pra race condition.
  */
 public class MineResetService {
 
-    private final JavaPlugin plugin;
-
-    public MineResetService(JavaPlugin plugin) {
-        this.plugin = plugin;
-    }
-
     public void reset(Mine mine) {
-        // Guarda contra reset duplicado: o MineResetTask reavalia as condicoes de reset a
-        // cada 20 ticks (1s), mas lastReset/blocksRemaining so sao atualizados aqui DEPOIS
-        // que o FAWE assincrono termina - numa mina grande isso pode levar varios segundos,
-        // entao sem essa guarda o mesmo reset() era disparado de novo a cada tick (time-based
-        // reavalia "ja passou o intervalo" sempre true; percentage-based reavalia "ainda esta
-        // abaixo do limite" tambem sempre true, ja que ninguem mais quebra bloco depois do
-        // teleport) - varios EditSession do FAWE escrevendo a MESMA regiao ao mesmo tempo,
-        // em threads diferentes, e a causa raiz mais provavel do "ghost block"/corrupcao que
-        // piora proporcionalmente ao tamanho (e portanto ao tempo) do reset.
+        // Guarda contra reentrada (mesmo padrao do AtomicBoolean "running" do AxMines) -
+        // nao deveria mais ser estritamente necessaria agora que o fill e 100% sincrono
+        // (nao ha mais janela assincrona pra reavaliar o MineResetTask no meio do caminho),
+        // mas custa quase nada e protege contra reentrancia via MinePreResetEvent/comandos
+        // de reset disparando outro reset() da mesma mina recursivamente.
         if (mine.isResetting()) {
             DebugLogger.log("Reset da mina '%s' ignorado - ja tem um reset em andamento.", mine.getId());
             return;
@@ -53,33 +45,28 @@ public class MineResetService {
                 mine.getId(), mine.getRegion().getVolume(), mine.getBlocksRemaining());
         teleportPlayersOut(mine);
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            long start = System.nanoTime();
-            FAWEHook.resetRegion(mine.getRegion(), mine.getComposition());
-            long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-            DebugLogger.log("Reset '%s': FAWE concluido em %d ms.", mine.getId(), elapsedMs);
+        try {
+            BlockFillHook.fillRegion(mine.getRegion(), mine.getComposition());
+        } catch (Throwable t) {
+            Logger.getLogger("AlkaMines").log(Level.SEVERE,
+                    "Reset da mina '" + mine.getId() + "' falhou - liberando a guarda mesmo assim.", t);
+        } finally {
+            mine.setResetting(false);
+        }
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                mine.setLastReset(System.currentTimeMillis());
-                mine.setBlocksRemaining((int) Math.min(mine.getRegion().getVolume(), Integer.MAX_VALUE));
+        mine.setLastReset(System.currentTimeMillis());
+        mine.setBlocksRemaining((int) Math.min(mine.getRegion().getVolume(), Integer.MAX_VALUE));
 
-                MineManager manager = MineManager.getInstance();
-                if (manager != null) {
-                    manager.markDirty(mine.getId());
-                }
+        MineManager manager = MineManager.getInstance();
+        if (manager != null) {
+            manager.markDirty(mine.getId());
+        }
 
-                runResetCommands(mine);
-                broadcastReset(mine);
+        runResetCommands(mine);
+        broadcastReset(mine);
 
-                DebugLogger.log("Reset '%s' concluido na main thread (restantes=%d).",
-                        mine.getId(), mine.getBlocksRemaining());
-                // so libera a guarda DEPOIS de lastReset/blocksRemaining ja estarem
-                // atualizados, senao o MineResetTask do proximo tick pode ver o estado
-                // "resetting=false" mas ainda com os valores antigos e disparar de novo.
-                mine.setResetting(false);
-                Bukkit.getPluginManager().callEvent(new MineResetEvent(mine));
-            });
-        });
+        DebugLogger.log("Reset '%s' concluido (restantes=%d).", mine.getId(), mine.getBlocksRemaining());
+        Bukkit.getPluginManager().callEvent(new MineResetEvent(mine));
     }
 
     private void teleportPlayersOut(Mine mine) {

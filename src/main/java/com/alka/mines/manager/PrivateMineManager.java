@@ -1,6 +1,7 @@
 package com.alka.mines.manager;
 
 import com.alka.mines.config.MessagesConfig;
+import com.alka.mines.hook.BlockFillHook;
 import com.alka.mines.hook.FAWEHook;
 import com.alka.mines.hook.FAWEHook.SchematicPaste;
 import com.alka.mines.hook.AlkaEconomyHook;
@@ -42,6 +43,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Minas particulares (Arquitetura da Mina Particular): o jogador usa um item gerador
@@ -582,7 +584,7 @@ public class PrivateMineManager {
                 FAWEHook.pasteSchematic(backupFile, origin);
                 backupFile.delete(); // proxima ativacao salva um backup novo
             } else {
-                FAWEHook.clearRegion(plotRegion);
+                BlockFillHook.clearRegion(plotRegion);
             }
             teleportToPlotFloor(player, mine.get());
         });
@@ -961,8 +963,18 @@ public class PrivateMineManager {
                 // main thread (runTask): o FAWE ja opera async internamente; rodar no pool
                 // async do Bukkit causava race/ghost blocks no cliente.
                 Bukkit.getScheduler().runTask(plugin, () -> {
-                    fill(mine, template);
-                    mine.setResetting(false);
+                    try {
+                        fill(mine, template);
+                    } catch (Throwable t) {
+                        // sem isso, uma excecao aqui (regiao mal formada, erro interno do
+                        // FAWE) deixava a mina travada em "resetando" pra sempre - todo bloco
+                        // dela ficaria indestrutivel de vez (MineBreakListener bloqueia
+                        // enquanto isResetting() for true).
+                        Logger.getLogger("AlkaMines").log(Level.SEVERE,
+                                "Fill da mina particular '" + mine.getTemplateId() + "' falhou - liberando a guarda mesmo assim.", t);
+                    } finally {
+                        mine.setResetting(false);
+                    }
                 });
                 mine.setLastReset(System.currentTimeMillis());
                 mine.setBlocksRemaining((int) Math.min(mine.volume(), Integer.MAX_VALUE));
@@ -1049,7 +1061,7 @@ public class PrivateMineManager {
             // reset/expand se a composicao do template estiver vazia.
             DebugLogger.warn("Mina particular '%s': composicao VAZIA - preenchendo com stone.",
                     mine.getTemplateId());
-            FAWEHook.resetRegion(region, List.of(new MineBlock(Material.STONE, 1.0)));
+            BlockFillHook.fillRegion(region, List.of(new MineBlock(Material.STONE, 1.0)));
             return;
         }
         if (template.getSchematic() != null) {
@@ -1058,13 +1070,13 @@ public class PrivateMineManager {
             DebugLogger.log("Reset preservando paredes da mina particular '%s' (%d,%d,%d -> %d,%d,%d).",
                     mine.getTemplateId(), region.getX1(), region.getY1(), region.getZ1(),
                     region.getX2(), region.getY2(), region.getZ2());
-            FAWEHook.resetRegionPreserving(region, template.getComposition());
+            BlockFillHook.fillRegionPreserving(region, template.getComposition());
             return;
         }
         DebugLogger.log("Preenchendo mina particular '%s' (%d,%d,%d -> %d,%d,%d) com %d bloco(s) de composicao.",
                 mine.getTemplateId(), region.getX1(), region.getY1(), region.getZ1(),
                 region.getX2(), region.getY2(), region.getZ2(), template.getComposition().size());
-        FAWEHook.resetRegion(region, template.getComposition());
+        BlockFillHook.fillRegion(region, template.getComposition());
     }
 
     /** Preenche apenas a "casca" nova da expansao (regiao nova - regiao antiga), sem
@@ -1088,12 +1100,12 @@ public class PrivateMineManager {
         if (template.getSchematic() != null) {
             DebugLogger.log("Expand preservando a PT1 da mina particular '%s' (casca fora de X %d-%d, Z %d-%d).",
                     mine.getTemplateId(), oldMinX, oldMaxX, oldMinZ, oldMaxZ);
-            FAWEHook.resetRegionOuterPreserving(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ, composition);
+            BlockFillHook.fillRegionOuterPreserving(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ, composition);
             return;
         }
         DebugLogger.log("Expand da mina particular '%s': preenchendo a casca fora de X %d-%d, Z %d-%d.",
                 mine.getTemplateId(), oldMinX, oldMaxX, oldMinZ, oldMaxZ);
-        FAWEHook.resetRegionOuter(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ, composition);
+        BlockFillHook.fillRegionOuter(region, oldMinX, oldMaxX, oldMinZ, oldMaxZ, composition);
     }
 
     /** AIR + qualquer Material da composicao do template - usado por {@link #expand} pra

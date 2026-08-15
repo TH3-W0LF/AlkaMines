@@ -261,6 +261,22 @@ public class MineBreakListener implements Listener {
         event.setDropItems(false);
         event.setExpToDrop(0);
 
+        // Resincroniza AIR explicitamente pra qualquer jogador proximo, redundante ao
+        // pacote que o vanilla ja deveria mandar sozinho (o evento termina nao-cancelado
+        // logo acima). Visto em teste real: um OP quebrava o bloco de verdade (servidor
+        // ja ficava com AIR - por isso o OP conseguia) mas outro jogador continuava
+        // vendo o bloco solido ate relogar - classico pacote de atualizacao que nao
+        // chegou em algum client, nao corrupcao de dado (relog corrigiu, o que so
+        // acontece se o dado do servidor ja estava certo). Custa quase nada e fecha
+        // esse gap especifico sem depender so do broadcast interno do Paper.
+        Location breakLoc = block.getLocation();
+        var airData = Material.AIR.createBlockData();
+        for (Player nearby : block.getWorld().getPlayers()) {
+            if (nearby.getLocation().distanceSquared(breakLoc) <= 64.0 * 64.0) {
+                nearby.sendBlockChange(breakLoc, airData);
+            }
+        }
+
         if (mine != null) {
             applyRewards(player, block, mine, drops);
         }

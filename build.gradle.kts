@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.alkacode"
-version = "1.0.78"
+version = "1.0.81"
 
 java {
     toolchain {

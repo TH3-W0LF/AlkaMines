@@ -76,7 +76,7 @@ public final class AlkaMines extends AlkaPlugin {
         privateMineManager.setHologramManager(hologramManager);
         PlotSquaredHook.tryHook();
         WorldEditHook worldEditHook = new WorldEditHook();
-        MineResetService resetService = new MineResetService(this);
+        MineResetService resetService = new MineResetService();
 
         AdminMainMenu adminMainMenu = new AdminMainMenu(this, mineManager, hologramManager);
         BlockCompositionMenu compositionMenu = new BlockCompositionMenu(this, mineManager);

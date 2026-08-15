@@ -5,7 +5,6 @@ import com.alka.mines.model.MineRegion;
 import com.alka.mines.util.DebugLogger;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
-import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
@@ -13,22 +12,12 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardWriter;
-import com.sk89q.worldedit.function.mask.BlockMask;
-import com.sk89q.worldedit.function.mask.Mask;
-import com.sk89q.worldedit.function.mask.MaskIntersection;
-import com.sk89q.worldedit.function.mask.Masks;
-import com.sk89q.worldedit.function.mask.RegionMask;
 import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
-import com.sk89q.worldedit.function.pattern.BlockPattern;
-import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.function.pattern.RandomPattern;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
-import com.sk89q.worldedit.world.block.BaseBlock;
-import com.sk89q.worldedit.world.block.BlockState;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -39,150 +28,21 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/** Operacoes FAWE do AlkaMines: substituir blocos de uma regiao (RandomPattern ponderado
- * pelo peso de cada MineBlock), limpar regiao (AIR) e colar schematic (minas particulares). */
+/**
+ * Operacoes de schematic do AlkaMines (colar/salvar .schem pra minas particulares) - o
+ * unico uso de FAWE/WorldEdit que sobra no plugin. Preencher/resetar regiao com composicao
+ * aleatoria NAO usa mais FAWE - ver {@link BlockFillHook} (escrita direta via Bukkit API,
+ * sincrona, sem a categoria inteira de bug que EditSession assincrono causava aqui).
+ */
 public final class FAWEHook {
 
     private FAWEHook() {
-    }
-
-    public static void resetRegion(MineRegion mineRegion, List<MineBlock> composition) {
-        setBlocks(mineRegion, buildPattern(composition), null);
-    }
-
-    /**
-     * Preenche a regiao preservando as "paredes": so substitui blocos que sao AIR ou da
-     * composicao. Blocos que NAO estao na composicao (paredes/calcit/floor do schematic)
-     * ficam intactos. Usado no reset de minas criadas a partir de schematic.
-     */
-    public static void resetRegionPreserving(MineRegion mineRegion, List<MineBlock> composition) {
-        World bukkitWorld = Bukkit.getWorld(mineRegion.getWorld());
-        if (bukkitWorld == null) {
-            return;
-        }
-        com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
-        Set<BaseBlock> states = new HashSet<>();
-        states.add(BukkitAdapter.adapt(Material.AIR.createBlockData()).toBaseBlock());
-        for (MineBlock block : composition) {
-            states.add(BukkitAdapter.adapt(block.getMaterial().createBlockData()).toBaseBlock());
-        }
-        // mascara: ar + blocos da composicao (preserva paredes fora da composicao).
-        Mask mask = new BlockMask(weWorld, states);
-        setBlocks(mineRegion, buildPattern(composition), mask);
-    }
-
-    /**
-     * Preenche APENAS a "casca" nova de uma expansao (os blocos que estao na regiao nova
-     * mas NAO na antiga). O que ja existia dentro da regiao antiga (paredes e minerio ja
-     * presente) e preservado.
-     *
-     * @param newRegion a regiao da mina JA expandida
-     * @param oldMinX/oldMaxX/oldMinZ/oldMaxZ os bounds X/Z ANTES da expansao
-     */
-    public static void resetRegionOuter(MineRegion newRegion, int oldMinX, int oldMaxX,
-                                        int oldMinZ, int oldMaxZ, List<MineBlock> composition) {
-        World bukkitWorld = Bukkit.getWorld(newRegion.getWorld());
-        if (bukkitWorld == null) {
-            return;
-        }
-        com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
-        Region oldRegion = new CuboidRegion(weWorld,
-                BlockVector3.at(oldMinX, newRegion.getY1(), oldMinZ),
-                BlockVector3.at(oldMaxX, newRegion.getY2(), oldMaxZ));
-        // mascara: tudo FORA da regiao antiga (a casca nova).
-        Mask outerMask = Masks.negate(new RegionMask(oldRegion));
-        setBlocks(newRegion, buildPattern(composition), outerMask);
-    }
-
-    /**
-     * Igual {@link #resetRegionOuter}, mas preservando a PT1 (paredes/decor do schematic):
-     * dentro da casca nova, so substitui blocos que sao AIR ou da composicao - qualquer
-     * bloco de parede/decor que ja esteja ali (colado junto com o schematic) fica intacto,
-     * a mesma regra do {@link #resetRegionPreserving}. Usado no expand de minas com
-     * schematic - sem isso a casca nova virava um bloco solido de minerio puro, destruindo
-     * qualquer parede/decor da PT1 que caisse dentro da area recem-expandida.
-     */
-    public static void resetRegionOuterPreserving(MineRegion newRegion, int oldMinX, int oldMaxX,
-                                        int oldMinZ, int oldMaxZ, List<MineBlock> composition) {
-        World bukkitWorld = Bukkit.getWorld(newRegion.getWorld());
-        if (bukkitWorld == null) {
-            return;
-        }
-        com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
-        Region oldRegion = new CuboidRegion(weWorld,
-                BlockVector3.at(oldMinX, newRegion.getY1(), oldMinZ),
-                BlockVector3.at(oldMaxX, newRegion.getY2(), oldMaxZ));
-        Mask outerMask = Masks.negate(new RegionMask(oldRegion));
-
-        Set<BaseBlock> states = new HashSet<>();
-        states.add(BukkitAdapter.adapt(Material.AIR.createBlockData()).toBaseBlock());
-        for (MineBlock block : composition) {
-            states.add(BukkitAdapter.adapt(block.getMaterial().createBlockData()).toBaseBlock());
-        }
-        Mask preserveMask = new BlockMask(weWorld, states);
-
-        // casca nova (fora da regiao antiga) E (ar ou composicao) - a intersecao das duas.
-        Mask combined = new MaskIntersection(outerMask, preserveMask);
-        setBlocks(newRegion, buildPattern(composition), combined);
-    }
-
-    private static RandomPattern buildPattern(List<MineBlock> composition) {
-        RandomPattern pattern = new RandomPattern();
-        for (MineBlock block : composition) {
-            BlockState state = BukkitAdapter.adapt(block.getMaterial().createBlockData());
-            pattern.add(new BlockPattern(state), block.getWeight());
-        }
-        if (composition.isEmpty()) {
-            // rede de seguranca - mina sem composicao configurada nunca deveria ficar "vazia" no reset.
-            pattern.add(new BlockPattern(BukkitAdapter.adapt(Material.STONE.createBlockData())), 1.0);
-        }
-        return pattern;
-    }
-
-    /** Preenche a regiao inteira com ar - usado ao deletar uma mina particular. */
-    public static void clearRegion(MineRegion mineRegion) {
-        setBlocks(mineRegion, new BlockPattern(BukkitAdapter.adapt(Material.AIR.createBlockData())), null);
-    }
-
-    private static void setBlocks(MineRegion mineRegion, Pattern pattern, Mask mask) {
-        World bukkitWorld = Bukkit.getWorld(mineRegion.getWorld());
-        if (bukkitWorld == null) {
-            Logger.getLogger("AlkaMines").warning("Mundo '" + mineRegion.getWorld() + "' nao esta carregado.");
-            return;
-        }
-
-        com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(bukkitWorld);
-        Region region = new CuboidRegion(weWorld,
-                BlockVector3.at(mineRegion.getX1(), mineRegion.getY1(), mineRegion.getZ1()),
-                BlockVector3.at(mineRegion.getX2(), mineRegion.getY2(), mineRegion.getZ2()));
-
-        long start = System.nanoTime();
-        try (EditSession editSession = WorldEdit.getInstance().newEditSessionBuilder()
-                .world(weWorld)
-                .fastMode(true)
-                .limitUnlimited()
-                .build()) {
-            if (mask == null) {
-                editSession.setBlocks(region, pattern);
-            } else {
-                editSession.replaceBlocks(region, mask, pattern);
-            }
-        } catch (MaxChangedBlocksException e) {
-            // nao deveria disparar com limitUnlimited(), mas protege contra limite forcado externamente.
-            Logger.getLogger("AlkaMines").log(Level.WARNING, "Operacao FAWE interrompida por limite de blocos.", e);
-        }
-        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-        DebugLogger.log("FAWE setBlocks: %d blocos em '%s' em %d ms.",
-                mineRegion.getVolume(), mineRegion.getWorld(), elapsedMs);
-        refreshChunks(bukkitWorld, mineRegion.getX1(), mineRegion.getZ1(), mineRegion.getX2(), mineRegion.getZ2());
     }
 
     /** Cola um schematic .schem alinhado ao `origin` (canto minimo do schematic vai pra
@@ -364,7 +224,7 @@ public final class FAWEHook {
             }
         }
 
-        List<MineBlock> composition = new java.util.ArrayList<>();
+        List<MineBlock> composition = new ArrayList<>();
         counts.forEach((id, count) -> {
             Material material = Material.matchMaterial(id);
             if (material != null) {
