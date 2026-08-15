@@ -41,6 +41,11 @@ public class AdminMainMenu {
 
     public void open(Player admin, String mineId) {
         new AdminMainMenuGui(plugin, admin, mineManager, hologramManager,
-                blockCompositionMenu, mineResetMenu, mineRewardsMenu, mineId).open();
+                blockCompositionMenu, mineResetMenu, mineRewardsMenu, mineId, this).open();
+    }
+
+    /** Lista de minas pra escolher qual editar - usado por /alkamines editar sem id. */
+    public void openList(Player admin) {
+        new AdminMineListGui(plugin, admin, mineManager, this).open();
     }
 }

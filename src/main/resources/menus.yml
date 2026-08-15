@@ -8,7 +8,8 @@
 titles:
   mine-list-categories: "<dark_gray>◈ <gold>Categorias de Minas <dark_gray>◈"
   mine-list: "<dark_gray>◈ <gold>Minas: {category} <dark_gray>◈"
-  admin: "<dark_gray>◈ <dark_purple>Gerenciar: {mine} <dark_gray>◈"
+  admin: "<dark_gray>◈ <light_purple>Gerenciar: {mine} <dark_gray>◈"
+  admin-list: "<dark_gray>◈ <light_purple>Gerenciar Minas <dark_gray>◈"
   reset: "<dark_gray>◈ <gold>Reset: {mine} <dark_gray>◈"
   ranking: "<dark_gray>◈ <yellow>Ranking - Blocos Minerados <dark_gray>◈"
   private: "<dark_gray>◈ <aqua>Mina Particular <dark_gray>◈"
@@ -133,6 +134,28 @@ items:
       - "<dark_red>ATENÇÃO! Ação irreversível."
       - ""
       - "<red>▶ Shift+Click para confirmar"
+
+  # ---------- Lista de minas pro admin escolher (/alkamines editar) ----------
+  admin-list.mine:
+    material: LIME_WOOL
+    name: "<light_purple><bold>{mine}"
+    lore:
+      - "<gray>Categoria: <aqua>{category}"
+      - "<gray>Restantes: <yellow>{blocks}"
+      - ""
+      - "<yellow>▶ Clique para editar"
+
+  admin-list.nav-previous:
+    material: ARROW
+    name: "<yellow>Anterior"
+    lore:
+      - "<gray>Página {page}"
+
+  admin-list.nav-next:
+    material: ARROW
+    name: "<yellow>Próxima"
+    lore:
+      - "<gray>Página {page}"
 
   # ---------- Menu reset ----------
   reset.interval:

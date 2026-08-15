@@ -24,10 +24,11 @@ public class AdminMainMenuGui extends BaseGui {
     private final MineResetMenu mineResetMenu;
     private final MineRewardsMenu mineRewardsMenu;
     private final String mineId;
+    private final AdminMainMenu adminMainMenu;
 
     public AdminMainMenuGui(JavaPlugin plugin, Player admin, MineManager mineManager, HologramManager hologramManager,
                             BlockCompositionMenu blockCompositionMenu, MineResetMenu mineResetMenu,
-                            MineRewardsMenu mineRewardsMenu, String mineId) {
+                            MineRewardsMenu mineRewardsMenu, String mineId, AdminMainMenu adminMainMenu) {
         super(plugin, admin, title(plugin, mineManager, mineId), 3, "alkamines-admin");
         this.mineManager = mineManager;
         this.hologramManager = hologramManager;
@@ -35,6 +36,7 @@ public class AdminMainMenuGui extends BaseGui {
         this.mineResetMenu = mineResetMenu;
         this.mineRewardsMenu = mineRewardsMenu;
         this.mineId = mineId;
+        this.adminMainMenu = adminMainMenu;
     }
 
     private static String title(JavaPlugin plugin, MineManager mineManager, String mineId) {
@@ -58,7 +60,7 @@ public class AdminMainMenuGui extends BaseGui {
                 : mine.getIcon() != null ? mine.getIcon().name() : "nenhum (usa la verde/vermelha)";
         MenuConfig cfg = MenuConfig.getInstance();
 
-        fillBorder(new ItemStack(Material.PURPLE_STAINED_GLASS_PANE));
+        fillBorder(new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE));
 
         setItem(4, cfg.item("items.admin.category", Map.of("category", mine.getCategory())),
                 event -> {
@@ -108,7 +110,7 @@ public class AdminMainMenuGui extends BaseGui {
                     mineManager.save();
                     player.closeInventory();
                     new AdminMainMenuGui(plugin, player, mineManager, hologramManager,
-                            blockCompositionMenu, mineResetMenu, mineRewardsMenu, mine.getId()).open();
+                            blockCompositionMenu, mineResetMenu, mineRewardsMenu, mine.getId(), adminMainMenu).open();
                 });
         setItem(14, cfg.item("items.admin.reset", Map.of()),
                 event -> {
@@ -152,5 +154,8 @@ public class AdminMainMenuGui extends BaseGui {
                     hologramManager.delete(id);
                     ChatUtil.sendKey(player, "admin.mine-deleted", Map.of("mine", id));
                 });
+        if (adminMainMenu != null) {
+            setItem(18, cfg.item("back", Map.of()), event -> adminMainMenu.openList(player));
+        }
     }
 }

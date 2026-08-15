@@ -180,7 +180,7 @@ public class AdminCommands implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            ChatUtil.sendKey(sender, "error.usage.edit");
+            adminMainMenu.openList(player);
             return;
         }
 

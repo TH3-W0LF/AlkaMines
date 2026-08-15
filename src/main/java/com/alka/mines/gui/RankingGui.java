@@ -46,8 +46,9 @@ public class RankingGui extends BaseGui {
             }
             Map.Entry<UUID, PlayerMineData> entry = top.get(index);
             String name = Bukkit.getOfflinePlayer(entry.getKey()).getName();
+            String safeName = name != null ? name : "?";
             PlayerMineData data = entry.getValue();
-            setItem(slot++, head(name != null ? name : "?", positionName(index + 1),
+            setItem(slot++, head(safeName, positionName(index + 1) + " <white>" + safeName,
                     "Blocos minerados: <yellow>" + String.format(Locale.US, "%,d", data.getBlocksBroken()),
                     "Nivel de picareta: <white>" + data.getPickaxeLevel()));
         }
