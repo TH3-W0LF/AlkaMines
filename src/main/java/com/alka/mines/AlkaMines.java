@@ -120,6 +120,7 @@ public final class AlkaMines extends AlkaPlugin {
         AtomicReference<Optional<AdvancedEnchantmentsHook>> aeHookRef = new AtomicReference<>(Optional.empty());
         AtomicReference<Optional<AlkaDropHook>> dropHookRef = new AtomicReference<>(Optional.empty());
         AtomicReference<Optional<com.alka.mines.hook.AlkaVipsHook>> vipsHookRef = new AtomicReference<>(Optional.empty());
+        privateMineManager.setVipsHookSupplier(vipsHookRef::get);
         Bukkit.getScheduler().runTask(this, () -> {
             economyHookRef.set(AlkaEconomyHook.tryHook(this));
             shopHookRef.set(AlkaShopHook.tryHook(this));

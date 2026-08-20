@@ -85,12 +85,20 @@ public class PrivateMineManager {
     private NamespacedKey generatorPdcKey;
     private com.alka.mines.hologram.HologramManager hologramManager;
 
+    private java.util.function.Supplier<Optional<com.alka.mines.hook.AlkaVipsHook>> vipsHookSupplier = Optional::empty;
+
     public PrivateMineManager(JavaPlugin plugin) {
         this.plugin = plugin;
         this.minesFile = new File(plugin.getDataFolder(), "private-mines.yml");
         this.templatesFile = new File(plugin.getDataFolder(), "private-mine-templates.yml");
         this.generatorPdcKey = new NamespacedKey(plugin, GENERATOR_KEY);
         load();
+    }
+
+    /** Chamado uma vez no onEnable, depois que o hook do AlkaVips e resolvido (1 tick
+     * depois via AtomicReference, mesmo padrao do resto dos hooks softdepend do plugin). */
+    public void setVipsHookSupplier(java.util.function.Supplier<Optional<com.alka.mines.hook.AlkaVipsHook>> supplier) {
+        this.vipsHookSupplier = supplier;
     }
 
     public void reload() {
@@ -379,7 +387,9 @@ public class PrivateMineManager {
     }
 
     /** Limite de minas particulares do jogador: max valor entre as permissoes que ele
-     * tem (config private-mine-limits); sem nenhuma, usa o default. */
+     * tem (config private-mine-limits), mais os slots extra concedidos pelos perks
+     * EXTRA_MINE_SLOT do AlkaVips (0 se o plugin nao estiver instalado/sem perk). Sem
+     * nenhuma permissao, usa o default. */
     public int getLimit(UUID owner) {
         Player player = Bukkit.getPlayer(owner);
         if (player == null) {
@@ -398,7 +408,8 @@ public class PrivateMineManager {
                 limit = Math.max(limit, limits.getInt(key, 0));
             }
         }
-        return limit;
+        int extraFromPerks = vipsHookSupplier.get().map(hook -> hook.getExtraMineSlots(owner)).orElse(0);
+        return limit + extraFromPerks;
     }
 
     /**
