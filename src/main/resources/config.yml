@@ -75,7 +75,7 @@ private-mine-reset-times:
   vip: [15, 30, 60]
   mvp: [5, 10, 15, 30, 60]
 # Custo e moeda do upgrade (expandir). A moeda e qualquer currencyId da AlkaEconomy
-# (ex: coins, escarion). O upgrade expande a mina em private-mine-expand-amount blocos
+# (ex: gold, escarion). O upgrade expande a mina em private-mine-expand-amount blocos
 # pra cada lado em X/Z (a altura Y nunca muda), sempre parando private-mine-expand-wall-margin
 # blocos ANTES da parede da plot (nunca encosta na borda). Se bater numa parede/estrutura de
 # verdade antes de completar a quantidade, para ali e avisa "limite atingido" - nunca destroi
@@ -83,7 +83,7 @@ private-mine-reset-times:
 # Cada template pode sobrescrever esse valor com expand-amount no
 # private-mine-templates.yml (-1 = usa este global).
 private-mine-upgrade-cost: 10000
-private-mine-upgrade-currency: coins
+private-mine-upgrade-currency: gold
 private-mine-expand-amount: 1
 private-mine-expand-wall-margin: 2
 

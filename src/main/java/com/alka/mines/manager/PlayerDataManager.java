@@ -19,7 +19,7 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 /**
- * Estado por jogador (mina atual, blocos quebrados, nivel de picareta, bonus de coins)
+ * Estado por jogador (mina atual, blocos quebrados, nivel de picareta, bonus de gold)
  * + a localizacao global de "saida" configurada por um admin via /alkamines setsaida.
  *
  * Persistencia no banco do AlkaCore ({@link PlayerMineRepository}) - substitui o

@@ -14,7 +14,7 @@ import java.util.logging.Level;
 
 /**
  * Ponte opcional com o AlkaShop - a mina NAO guarda nenhum preco nem sabe o que e
- * "coins": so pergunta se a auto-venda esta ativa pro jogador e, se sim, entrega o
+ * "gold": so pergunta se a auto-venda esta ativa pro jogador e, se sim, entrega o
  * drop pro AlkaShop vender em vez de por no inventario. Preco/moeda sao decisao
  * exclusiva do AlkaShop (ver AlkaShopAPI#getPrice). Integracao soft via
  * ServicesManager - AlkaShop registra sua API la.

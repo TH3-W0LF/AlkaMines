@@ -854,7 +854,7 @@ public class PrivateMineManager {
 
     /** Moeda do upgrade (qualquer currencyId da AlkaEconomy). */
     public String getUpgradeCurrency() {
-        return plugin.getConfig().getString("private-mine-upgrade-currency", "coins");
+        return plugin.getConfig().getString("private-mine-upgrade-currency", "gold");
     }
 
     /** Quantos blocos crescer por lado num expand/upgrade - o template pode sobrescrever

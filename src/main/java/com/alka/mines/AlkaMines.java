@@ -119,17 +119,19 @@ public final class AlkaMines extends AlkaPlugin {
         AtomicReference<Optional<McMMOHook>> mcmmoHookRef = new AtomicReference<>(Optional.empty());
         AtomicReference<Optional<AdvancedEnchantmentsHook>> aeHookRef = new AtomicReference<>(Optional.empty());
         AtomicReference<Optional<AlkaDropHook>> dropHookRef = new AtomicReference<>(Optional.empty());
+        AtomicReference<Optional<com.alka.mines.hook.AlkaVipsHook>> vipsHookRef = new AtomicReference<>(Optional.empty());
         Bukkit.getScheduler().runTask(this, () -> {
             economyHookRef.set(AlkaEconomyHook.tryHook(this));
             shopHookRef.set(AlkaShopHook.tryHook(this));
             mcmmoHookRef.set(McMMOHook.tryHook(this));
             aeHookRef.set(AdvancedEnchantmentsHook.tryHook(this));
             dropHookRef.set(AlkaDropHook.tryHook(this));
+            vipsHookRef.set(com.alka.mines.hook.AlkaVipsHook.tryHook(this));
         });
 
         getServer().getPluginManager().registerEvents(
                 new MineBreakListener(mineManager, playerDataManager, levelManager, privateMineManager,
-                        shopHookRef::get, mcmmoHookRef::get, aeHookRef::get, dropHookRef::get), this);
+                        shopHookRef::get, mcmmoHookRef::get, aeHookRef::get, dropHookRef::get, vipsHookRef::get), this);
 
         AdminCommands adminCommands = new AdminCommands(mineManager, worldEditHook, adminMainMenu, resetService,
                 playerDataManager, hologramManager, privateMineManager);

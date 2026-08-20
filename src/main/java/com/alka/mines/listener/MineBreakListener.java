@@ -47,7 +47,7 @@ import java.util.function.Supplier;
  * (respeitando Fortune/Silk Touch via Block#getDrops(tool), nao um ItemStack cru do
  * proprio Material), decrementa blocksRemaining e conta blocos quebrados por jogador.
  *
- * A mina NAO vende nada e NAO sabe o que e coins - preco/moeda sao decisao exclusiva
+ * A mina NAO vende nada e NAO sabe o que e gold - preco/moeda sao decisao exclusiva
  * do AlkaShop (preco global por Material, independente de mina). Se AlkaDrop estiver
  * instalado e o jogador estiver dentro desta mina, o AlkaDropHook cede o controle do
  * bloco de volta pra ca (ver AlkaMinesHook no AlkaDrop) - por isso o drop ainda e
@@ -108,13 +108,15 @@ public class MineBreakListener implements Listener {
      * antes do AlkaDrop no log do servidor, apesar do softdepend).
      */
     private final Supplier<Optional<AlkaDropHook>> dropHookSupplier;
+    private final Supplier<Optional<com.alka.mines.hook.AlkaVipsHook>> vipsHookSupplier;
 
     public MineBreakListener(MineManager mineManager, PlayerDataManager playerDataManager,
                               PickaxeLevelManager levelManager, PrivateMineManager privateMineManager,
                               Supplier<Optional<AlkaShopHook>> shopHookSupplier,
                               Supplier<Optional<McMMOHook>> mcmmoHookSupplier,
                               Supplier<Optional<AdvancedEnchantmentsHook>> aeHookSupplier,
-                              Supplier<Optional<AlkaDropHook>> dropHookSupplier) {
+                              Supplier<Optional<AlkaDropHook>> dropHookSupplier,
+                              Supplier<Optional<com.alka.mines.hook.AlkaVipsHook>> vipsHookSupplier) {
         this.mineManager = mineManager;
         this.playerDataManager = playerDataManager;
         this.levelManager = levelManager;
@@ -123,6 +125,7 @@ public class MineBreakListener implements Listener {
         this.mcmmoHookSupplier = mcmmoHookSupplier;
         this.aeHookSupplier = aeHookSupplier;
         this.dropHookSupplier = dropHookSupplier;
+        this.vipsHookSupplier = vipsHookSupplier;
     }
 
     /**
@@ -317,11 +320,17 @@ public class MineBreakListener implements Listener {
         List<ItemStack> rewardItems = new ArrayList<>();
         List<String> rewardCommands = new ArrayList<>();
 
+        // Boost de servidor do AlkaVips ("VIP Solidario") amplifica a chance efetiva de
+        // reward - nunca sobe a chance base configurada pelo admin, so multiplica na hora
+        // da rolagem. 1.0 se nenhum boost ativo/AlkaVips ausente (getMineRareChanceMultiplier nunca lanca).
+        double rareChanceMultiplier = vipsHookSupplier.get()
+                .map(com.alka.mines.hook.AlkaVipsHook::getMineRareChanceMultiplier).orElse(1.0);
+
         for (MineReward reward : mine.getRewards()) {
             if (!reward.matches(block.getType())) {
                 continue;
             }
-            if (ThreadLocalRandom.current().nextDouble() * 100.0 < reward.getChance()) {
+            if (ThreadLocalRandom.current().nextDouble() * 100.0 < reward.getChance() * rareChanceMultiplier) {
                 rewardItems.addAll(reward.getItems());
                 rewardCommands.addAll(reward.getCommands());
                 preventDrops |= reward.isPreventDrops();

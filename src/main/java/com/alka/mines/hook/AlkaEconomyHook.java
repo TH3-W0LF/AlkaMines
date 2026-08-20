@@ -10,11 +10,11 @@ import java.util.UUID;
 import java.util.logging.Level;
 
 /**
- * Ponte opcional com o AlkaEconomy - suporta qualquer currencyId (usamos COINS pras
+ * Ponte opcional com o AlkaEconomy - suporta qualquer currencyId (usamos GOLD pras
  * vendas e ESCARION pra recompensa de mineracao). Integracao soft: se o AlkaEconomy
  * nao estiver instalado, quem usa este hook simplesmente nao chama nada (ver Optional
  * em tryHook). Nao usa Vault: a propria AlkaEconomy ja cobre todas as moedas direto
- * via EconomyManager, Vault so serviria pra COINS mesmo assim.
+ * via EconomyManager, Vault so serviria pra GOLD mesmo assim.
  *
  * NUNCA importar com.alkacode.economy.AlkaEconomyPlugin/EconomyManager diretamente
  * aqui - a versao anterior fazia `plugin instanceof AlkaEconomyPlugin`, e o
@@ -68,7 +68,7 @@ public final class AlkaEconomyHook {
             Method getBalanceMethod = economyManagerClass.getMethod("getBalance", UUID.class, String.class);
             Method formatValueMethod = economyManagerClass.getMethod("formatValue", double.class);
 
-            plugin.getLogger().info("Hook do AlkaEconomy habilitado (COINS + ESCARION).");
+            plugin.getLogger().info("Hook do AlkaEconomy habilitado (GOLD + ESCARION).");
             instance = new AlkaEconomyHook(economyManager, addBalanceMethod, removeBalanceMethod,
                     getBalanceMethod, formatValueMethod);
             return Optional.of(instance);
